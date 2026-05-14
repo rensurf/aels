@@ -4,6 +4,7 @@ __pycache__/
 *.pyc
 CLAUDE.md
 docs/how-to-own-the-code.md
-infrastructure/terraform/.terraform/
-infrastructure/terraform/terraform.tfstate
-infrastructure/terraform/terraform.tfstate.backup
+**/.terraform/
+**/terraform.tfstate
+**/terraform.tfstate.backup
+**/placeholder.zip
