@@ -82,20 +82,20 @@ aels/
 
 **Before writing any bot code, validate the stack:**
 
-- [ ] **Task 0.1**: Create Telegram bot via BotFather
+- [x] **Task 0.1**: Create Telegram bot via BotFather
   - Get bot token
   - Test with curl: `curl https://api.telegram.org/bot<TOKEN>/getMe`
 
-- [ ] **Task 0.2**: Get OpenAI API key
+- [x] **Task 0.2**: Get OpenAI API key
   - Sign up / get key from platform.openai.com
   - Test with simple completion call
 
-- [ ] **Task 0.3**: Microsoft Agent Framework "Hello World"
+- [x] **Task 0.3**: Microsoft Agent Framework "Hello World"
   - Create minimal agent that responds to text
   - Validate framework setup before integrating with bot
   - Reference: https://github.com/microsoft/agent-framework
 
-- [ ] **Task 0.4**: Project structure setup
+- [x] **Task 0.4**: Project structure setup
   - Create directory structure
   - `requirements.txt` with initial dependencies:
     ```
@@ -120,36 +120,36 @@ aels/
 
 **Goal**: Get CosmosDB and Lambda running
 
-- [ ] **Task 1.1**: Terraform - Azure resources
+- [x] **Task 1.1**: Terraform - Azure resources
   - `infrastructure/terraform/modules/azure/cosmosdb.tf`
   - Create CosmosDB account with Gremlin API
   - Create database `knowledge`
   - Create graph `main`
   - Apply and verify in Azure Portal
 
-- [ ] **Task 1.2**: Terraform - AWS resources
+- [x] **Task 1.2**: Terraform - AWS resources
   - `infrastructure/terraform/modules/aws/lambda.tf`
   - Create Lambda function (Python 3.12)
   - Create IAM role with CloudWatch logs permission
   - Package deployment: initially just `def lambda_handler(event, context): return {"statusCode": 200}`
 
-- [ ] **Task 1.3**: Terraform - API Gateway
+- [x] **Task 1.3**: Terraform - API Gateway
   - `infrastructure/terraform/modules/aws/api_gateway.tf`
   - Create HTTP API
   - Route `POST /webhook` → Lambda
   - Get webhook URL from output
 
-- [ ] **Task 1.4**: Connect Telegram webhook
+- [x] **Task 1.4**: Connect Telegram webhook
   - Set webhook: `curl -X POST https://api.telegram.org/bot<TOKEN>/setWebhook -d "url=<API_GATEWAY_URL>"`
   - Test: Send message to bot → should trigger Lambda → check CloudWatch logs
 
-- [ ] **Task 1.5**: Test CosmosDB connection
+- [x] **Task 1.5**: Test CosmosDB connection
   - Write `infrastructure/scripts/init_graph_schema.py`
   - Connect to CosmosDB via Gremlin
   - Create a test vertex and query it back
   - Verify connection works
 
-- [ ] **Task 1.6**: Terraform - DynamoDB for session storage
+- [x] **Task 1.6**: Terraform - DynamoDB for session storage
   - `infrastructure/terraform/modules/aws/dynamodb.tf`
   - Create DynamoDB table: `aels-sessions`
   - Schema: `chat_id` (PK, String), `messages`, `pending_choices`, `last_activity`, `ttl`
