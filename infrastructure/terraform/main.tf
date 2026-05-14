@@ -23,3 +23,7 @@ module "azure" {
   source = "./modules/azure"
   azure_location = var.azure_location
 }
+
+module "aws" {
+  source = "./modules/aws"
+}
