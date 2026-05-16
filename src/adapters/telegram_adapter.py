@@ -23,6 +23,6 @@ class TelegramAdapter:
             message_id=message_id,
             timestamp=timestamp
         )
-        
+
     async def send(self, message: OutgoingMessage, chat_id: str) -> None:
         await self.bot.send_message(chat_id=chat_id, text=message.text)
