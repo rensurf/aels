@@ -1,0 +1,1 @@
+from src.main import lambda_handler
