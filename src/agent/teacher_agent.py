@@ -17,7 +17,7 @@ async def handle_message(incoming: IncomingMessage, messages: list[dict]) -> tup
     if messages:
         session = AgentSession.from_dict(messages)
     else:
-        session = await agent.create_session()
+        session = agent.create_session()
     
     result = await agent.run(incoming.text, session=session)
     
