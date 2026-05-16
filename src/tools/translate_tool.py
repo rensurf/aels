@@ -1,14 +1,10 @@
 import json
-import os
 
-from dotenv import load_dotenv
 from openai import OpenAI
 
-load_dotenv()
+from src.config import OPENAI_API_KEY
 
-openai_api_key = os.getenv("OPENAI_API_KEY")
-
-client = OpenAI(api_key=openai_api_key)
+client = OpenAI(api_key=OPENAI_API_KEY)
 
 prompt = """You are an English teacher helping a Japanese software engineer living in Australia.
 

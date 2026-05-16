@@ -1,19 +1,14 @@
-
-import os
 import uuid
 
-from dotenv import load_dotenv
-
+from src.config import COSMOS_DATABASE, COSMOS_ENDPOINT, COSMOS_GRAPH, COSMOS_KEY
 from src.graph import queries
 from src.graph.client import GremlinClient
 
 
-load_dotenv()
-
-client = GremlinClient(endpoint=os.getenv("COSMOS_ENDPOINT"),
-                       key=os.getenv("COSMOS_KEY"),
-                       database=os.getenv("COSMOS_DATABASE"),
-                       graph=os.getenv("COSMOS_GRAPH"))
+client = GremlinClient(endpoint=COSMOS_ENDPOINT,
+                       key=COSMOS_KEY,
+                       database=COSMOS_DATABASE,
+                       graph=COSMOS_GRAPH)
 
 def save_phrases(phrases: list[dict], user_id: str) -> None:
     for phrase in phrases:
