@@ -1,0 +1,24 @@
+from agent_framework import Agent, AgentSession
+from agent_framework.openai import OpenAIChatClient
+from src.agent.prompt import TEACHER_PROMPT
+from src.tools.translate_tool import translate_japanese
+from src.tools.qa_tool import answer_english_question
+from src.tools.memory_tool import save_phrases, search_phrases, get_recent_phrases
+from src.adapters.message_types import IncomingMessage, OutgoingMessage
+
+agent = Agent(
+    client=OpenAIChatClient(model="gpt-4o"),
+    instructions=TEACHER_PROMPT,
+    tools=[translate_japanese, answer_english_question, save_phrases, search_phrases, get_recent_phrases]
+)
+
+async def handle_message(incoming: IncomingMessage, messages: list[dict]) -> tuple[OutgoingMessage, AgentSession]:
+    # Restore session from DynamoDB data
+    if messages:
+        session = AgentSession.from_dict(messages)
+    else:
+        session = await agent.create_session()
+    
+    result = await agent.run(incoming.text, session=session)
+    
+    return OutgoingMessage(text=result.text, style="explanation"), session
