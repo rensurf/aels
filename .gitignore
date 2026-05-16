@@ -8,3 +8,6 @@ docs/how-to-own-the-code.md
 **/terraform.tfstate
 **/terraform.tfstate.backup
 **/placeholder.zip
+deployment.zip
+dist/
+dist2/
