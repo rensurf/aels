@@ -6,12 +6,12 @@ from src.agent.teacher_agent import handle_message
 from src.config import DYNAMODB_SESSION_TABLE, TELEGRAM_BOT_TOKEN
 from src.session.client import SessionClient
 
-bot = Bot(token=TELEGRAM_BOT_TOKEN)
 adapter = TelegramAdapter(token=TELEGRAM_BOT_TOKEN)
 session_client = SessionClient(table_name=DYNAMODB_SESSION_TABLE)
 
 def lambda_handler(event, context):
     async def main():
+        bot = Bot(token=TELEGRAM_BOT_TOKEN)
         chat_id = None
         try:
             # 1. Parse webhook
