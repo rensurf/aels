@@ -6,7 +6,7 @@ A Telegram bot that acts as a personal English teacher. It remembers phrases fro
 
 ## Demo
 
-<video src="https://github.com/rensurf/aels/releases/download/v1.0/demo.mp4" controls width="600"></video>
+<video src="https://github.com/user-attachments/assets/af3cc37a-4dc2-4f25-af0a-c4f0aa9f8728" controls width="600"></video>
 
 ---
 
