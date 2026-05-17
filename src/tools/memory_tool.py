@@ -10,7 +10,24 @@ client = GremlinClient(endpoint=COSMOS_ENDPOINT,
                        database=COSMOS_DATABASE,
                        graph=COSMOS_GRAPH)
 
+def _ensure_user_exists(user_id: str) -> None:
+    existing = client.execute(f"g.V().has('user', 'user_id', '{user_id}')")
+    if not existing:
+        client.execute(queries.create_user(user_id=user_id, name=user_id, goal="Work in Australia"))
+
 def save_phrases(phrases: list[dict], user_id: str) -> None:
+    """
+    Save English phrases to the user's knowledge graph.
+
+    Args:
+        phrases: List of phrase objects, each with:
+            - text: English phrase (str)
+            - japanese: Japanese meaning (str)
+            - context: Usage context e.g. "formal", "casual" (str)
+            - note: Additional notes (str)
+        user_id: The user's Telegram user ID
+    """
+    _ensure_user_exists(user_id)
     for phrase in phrases:
         phrase_id = str(uuid.uuid4())
         client.execute(queries.create_phrase(
@@ -18,7 +35,8 @@ def save_phrases(phrases: list[dict], user_id: str) -> None:
             text=phrase.get("text", ""),
             japanese=phrase.get("japanese", ""),
             context=phrase.get("context", ""),
-            note=phrase.get("note", "")
+            note=phrase.get("note", ""),
+            user_id=user_id
         ))
         client.execute(queries.link_user_to_phrase(user_id=user_id, phrase_id=phrase_id))
 
