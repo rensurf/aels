@@ -1,5 +1,4 @@
 from src.adapters.telegram_adapter import TelegramAdapter
-from src.adapters.message_types import IncomingMessage
 
 def test_receive_normal_message():
     adapter = TelegramAdapter(token="fake-token")
