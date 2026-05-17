@@ -33,7 +33,7 @@ def translate_japanese(japanese_text: str) -> list[dict]:
         ],
         response_format={"type": "json_object"}  # forces JSON output
     )
-    result = response.choices[0].message.content  # string of JSON
+    result = response.choices[0].message.content or "{}"
 
-    return json.loads(result)["translations"]
+    return json.loads(result).get("translations", [])
 

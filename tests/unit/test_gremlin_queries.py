@@ -6,7 +6,7 @@ def test_create_user_contains_user_id():
     assert "addV('user')" in result
 
 def test_create_phrase_contains_text():
-    result = queries.create_phrase("p1", "Got it", "承知しました", "casual", "Common phrase")
+    result = queries.create_phrase("p1", "Got it", "承知しました", "casual", "Common phrase", "u1")
     assert "Got it" in result
     assert "addV('phrase')" in result
 

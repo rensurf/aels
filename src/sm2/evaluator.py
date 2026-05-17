@@ -25,6 +25,6 @@ Respond with exactly one word: correct, close, or wrong."""
         max_tokens=10,
     )
 
-    judgment = response.choices[0].message.content.strip().lower()
+    judgment = (response.choices[0].message.content or "").strip().lower()
 
     return _QUALITY_MAP.get(judgment, 1)  # default to "wrong" if unexpected response

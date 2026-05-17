@@ -26,5 +26,5 @@ def answer_english_question(question: str) -> str:
     )
     result = response.choices[0].message.content
 
-    return result
+    return result or ""
 

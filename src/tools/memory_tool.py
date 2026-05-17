@@ -44,6 +44,6 @@ def search_phrases(query_text: str, user_id: str) -> list[dict]:
     result = client.execute(queries.search_phrases(user_id=user_id, query_text=query_text))
     return [dict(zip(res.keys(), res.values())) for res in result]
 
-def get_recent_phrases(user_id: str, limit: int) -> list[str]:
+def get_recent_phrases(user_id: str, limit: int) -> list[dict]:
     result = client.execute(queries.get_recent_phrases(user_id=user_id, limit=limit))
     return [dict(zip(res.keys(), res.values())) for res in result]

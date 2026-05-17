@@ -14,7 +14,7 @@ agent = Agent(
 
 async def handle_message(incoming: IncomingMessage, messages: list[dict]) -> tuple[OutgoingMessage, AgentSession]:
     if messages:
-        session = AgentSession.from_dict(messages)
+        session = AgentSession.from_dict(messages)  # type: ignore[arg-type]
     else:
         session = agent.create_session()
 
