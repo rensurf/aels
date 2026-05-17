@@ -8,6 +8,16 @@ A Telegram bot that acts as a personal English teacher. It remembers phrases fro
 
 <video src="https://github.com/user-attachments/assets/af3cc37a-4dc2-4f25-af0a-c4f0aa9f8728" controls width="600"></video>
 
+This demo shows the full learning loop:
+
+1. Ask AELS how to say 「承知しました」 in English
+2. Save "Got it" as a phrase
+3. Trigger a review quiz
+4. Answer with free text
+5. Get GPT-4o evaluation and SM-2 scheduling
+
+> Note: `/review` is used in the demo to trigger the review immediately. In normal use, reviews are scheduled automatically based on due dates.
+
 ---
 
 ## Why I built this
