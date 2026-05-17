@@ -21,3 +21,20 @@ class SessionClient:
         
     def clear_session(self, chat_id: str) -> None:
         self.table.delete_item(Key={"chat_id": chat_id})
+        
+    def get_quiz_state(self, chat_id: str) -> dict | None:
+        response = self.table.get_item(Key={"chat_id": chat_id})
+        return response.get("Item", {}).get("quiz_state")
+
+    def set_quiz_state(self, chat_id: str, quiz_state: dict) -> None:
+        self.table.update_item(
+            Key={"chat_id": chat_id},
+            UpdateExpression="SET quiz_state = :qs",
+            ExpressionAttributeValues={":qs": quiz_state}
+        )
+
+    def clear_quiz_state(self, chat_id: str) -> None:
+        self.table.update_item(
+            Key={"chat_id": chat_id},
+            UpdateExpression="REMOVE quiz_state"
+        )
