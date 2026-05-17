@@ -1,30 +1,37 @@
 # AELS — Autonomous English Learning System
 
-A Telegram bot that acts as a personal English teacher for Japanese speakers learning English. Unlike flashcard apps, it remembers your conversation history, grades your answers using GPT-4o, and schedules reviews using the SM-2 spaced repetition algorithm.
+A Telegram bot that acts as a personal English teacher. It remembers phrases from your conversations, quizzes you using SM-2 spaced repetition, and grades your answers with GPT-4o.
 
 ---
 
 ## Demo
 
-```
-You:  「承知しました」を英語で教えて
-Bot:  Here are a few options depending on the context:
-      • "Understood." — formal, widely used in business
-      • "Got it." — casual, day-to-day
-      • "Noted." — written communication, emails
-      Want me to save any of these?
+<video src="assets/demo.mp4" controls width="600"></video>
 
-You:  "Got it" を保存して
-Bot:  Saved! I'll quiz you on "Got it" in 1 day.
+---
 
---- next day ---
+## Why I built this
 
-Bot:  🇯🇵 承知しました
-      How do you say this in English?
+I had already built v1 of this project: an MCP-based phrase saver. It worked. I stopped using it within weeks.
 
-You:  Got it
-Bot:  ✅ Correct! Next review in 6 days.
-```
+The failure wasn't technical. I had built a tool, not a product. I designed the save feature but never designed the experience of actually sticking with it. Phrases piled up with no review. Notifications arrived with no habit behind them.
+
+v2 starts from the opposite direction. Before writing any code, I asked: *why didn't I keep using v1?* The answer was that the tool waited for me — I had to go to it. So v2 comes to me. It messages me for reviews. It remembers what I struggled with. It quizzes me on phrases I saved days ago.
+
+The goal isn't a smarter flashcard app. It's a teacher that shows up.
+
+---
+
+## What it can do today
+
+- **Translate** — ask in Japanese, get multiple English options with context notes
+- **Q&A** — ask about grammar, nuance, or usage in natural language
+- **Save phrases** — the teacher saves phrases to a graph database during conversation
+- **Search memory** — recall past phrases by topic or keyword
+- **Daily quiz** — proactive review at 8AM via EventBridge cron
+- **On-demand review** — `/review` triggers a quiz session anytime
+- **SM-2 scheduling** — each phrase tracks `ease_factor`, `interval`, and `due_date`; correct answers push the interval out, wrong answers reset it
+- **GPT-4o evaluation** — free-text answers are graded as correct / close / wrong (handles paraphrasing)
 
 ---
 
@@ -55,22 +62,60 @@ AWS Lambda (Python 3.12)
    └─ Azure CosmosDB (Gremlin API)
           — phrase knowledge graph
             (user) -[learned_phrase]-> (phrase {ease_factor, interval, due_date})
+
+EventBridge (cron 8AM AEST) → Quiz Scheduler Lambda
+                                   └─ fetches due phrases → sends first question
 ```
+
+---
+
+## Key Engineering Decisions
+
+**Why a graph database instead of relational?**
+Phrases have relationships — a phrase can belong to multiple topics, link to related phrases, and connect to a user's learning history. Graph traversal makes queries like "find phrases related to what I'm struggling with" natural. CosmosDB's Gremlin API gives managed, scalable graph storage without running infrastructure.
+
+**Why SM-2 for review scheduling?**
+SM-2 is the algorithm behind Anki. It tracks per-phrase `ease_factor`, `interval`, and `repetitions`, and adjusts how soon you see a phrase again based on how well you answered. Correct answers push the interval out exponentially; wrong answers reset it. This concentrates review time where it's actually needed.
+
+**Why Agent Framework instead of raw API calls?**
+The agent pattern cleanly separates concerns: the `Client` handles the LLM API, the `Agent` defines instructions and tools, and the `Session` holds conversation history. Swapping GPT-4o for another model only requires changing the `Client`. Tool functions are plain Python — no special decorators, just type annotations and docstrings that become the schema.
+
+**Why AWS Lambda instead of a server?**
+A Telegram bot has bursty, unpredictable traffic. Lambda scales to zero when idle (cost: $0), and scales out instantly on demand. The 29-second timeout is set to match Telegram's 30-second webhook deadline.
+
+**Why split AWS and Azure?**
+AWS Lambda + DynamoDB for compute and sessions (region: ap-southeast-2). Azure CosmosDB for the graph because the Gremlin API is unique to CosmosDB — no equivalent in AWS. Terraform manages both providers in one `apply`.
 
 ---
 
 ## Tech Stack
 
-| Component | Technology | Version |
-|---|---|---|
-| Agent Framework | Microsoft Agent Framework | 1.2.1 |
-| LLM | OpenAI GPT-4o | openai 2.32.0 |
-| Interface | Telegram Bot | python-telegram-bot 22.7 |
-| Graph DB | Azure CosmosDB (Gremlin API) | gremlinpython 3.8.1 |
-| Session Storage | AWS DynamoDB | boto3 |
-| Runtime | AWS Lambda | Python 3.12 |
-| IaC | Terraform | azurerm ~> 4.70, aws ~> 5.0 |
-| Testing | pytest + pytest-asyncio | pytest-asyncio 1.3.0 |
+| Component | Technology |
+|---|---|
+| Agent Framework | Microsoft Agent Framework 1.2.1 |
+| LLM | OpenAI GPT-4o |
+| Interface | Telegram Bot |
+| Graph DB | Azure CosmosDB (Gremlin API) |
+| Session Storage | AWS DynamoDB |
+| Runtime | AWS Lambda + Python 3.12 |
+| IaC | Terraform (azurerm + aws) |
+| CI | GitHub Actions (ruff + mypy + pytest) |
+
+---
+
+## Current Limitations
+
+- **Shallow graph usage** — phrases and SM-2 data are stored, but pattern relationships (e.g. "blocked on / depends on / work on → same preposition pattern") are not yet modelled as graph nodes
+- **Single user** — user routing assumes one user; multi-user support requires session isolation
+- **No observability** — logging is CloudWatch only; no structured tracing or alerting
+
+---
+
+## Next Steps
+
+- Add `mistake_pattern` nodes to the graph to surface recurring error patterns
+- Weakness analysis report sent weekly via Telegram
+- Teaching style adaptation based on conversation history
 
 ---
 
@@ -121,10 +166,8 @@ terraform apply
 ### 4. Set Telegram webhook
 
 ```bash
-# Get the URL from Terraform output
 terraform output webhook_url
 
-# Register with Telegram
 curl -X POST https://api.telegram.org/bot<TOKEN>/setWebhook \
   -d "url=<WEBHOOK_URL>/webhook"
 ```
@@ -140,10 +183,10 @@ bash infrastructure/scripts/deploy.sh
 ## Running Tests
 
 ```bash
-python -m pytest tests/unit/ -v
+uv run pytest tests/unit/ -v
 ```
 
-Test the agent interactively without Telegram or cloud infrastructure:
+Test the agent locally without Telegram or cloud infrastructure:
 
 ```bash
 python test_agent_local.py "承知しました を英語で"
