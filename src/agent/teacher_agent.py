@@ -13,12 +13,12 @@ agent = Agent(
 )
 
 async def handle_message(incoming: IncomingMessage, messages: list[dict]) -> tuple[OutgoingMessage, AgentSession]:
-    # Restore session from DynamoDB data
     if messages:
         session = AgentSession.from_dict(messages)
     else:
         session = agent.create_session()
-    
-    result = await agent.run(incoming.text, session=session)
-    
+
+    text_with_context = f"[user_id={incoming.user_id}] {incoming.text}"
+    result = await agent.run(text_with_context, session=session)
+
     return OutgoingMessage(text=result.text, style="explanation"), session
