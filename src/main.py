@@ -6,6 +6,7 @@ from src.adapters.telegram_adapter import TelegramAdapter
 from src.agent.teacher_agent import handle_message
 from src.config import DYNAMODB_SESSION_TABLE, TELEGRAM_BOT_TOKEN
 from src.session.client import SessionClient
+from src.quiz.flow import start_quiz, handle_quiz_answer
 
 adapter = TelegramAdapter(token=TELEGRAM_BOT_TOKEN)
 session_client = SessionClient(table_name=DYNAMODB_SESSION_TABLE)
@@ -22,9 +23,20 @@ def _send_thinking(chat_id: str) -> int:
 def lambda_handler(event, context):
     body = json.loads(event["body"])
     chat_id = str(body["message"]["chat"]["id"])
+    user_id = str(body["message"]["from"]["id"])
+    text = body["message"].get("text", "")
 
-    # Send "考えています..." synchronously before asyncio.run()
-    # This returns 200 to Telegram within 1s and prevents retries
+    # --- routing ---
+    if text == "/review":
+        start_quiz(chat_id, user_id)
+        return {"statusCode": 200}
+
+    quiz_state = session_client.get_quiz_state(chat_id)
+    if quiz_state:
+        handle_quiz_answer(chat_id, text)
+        return {"statusCode": 200}
+    # --- end routing ---
+
     try:
         thinking_message_id = _send_thinking(chat_id)
     except Exception as e:
