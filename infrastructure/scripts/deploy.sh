@@ -54,13 +54,31 @@ aws lambda update-function-code \
   --no-verify-ssl \
   --output text --query 'FunctionName'
 
+echo "=== Updating quiz scheduler Lambda from S3 ==="
+aws lambda update-function-code \
+  --function-name "aels-quiz-scheduler" \
+  --s3-bucket $S3_BUCKET \
+  --s3-key $S3_KEY \
+  --region ap-southeast-2 \
+  --no-verify-ssl \
+  --output text --query 'FunctionName'
+
 echo "=== Setting environment variables ==="
 source .env
+ENV_VARS="Variables={TELEGRAM_BOT_TOKEN=$TELEGRAM_BOT_TOKEN,OPENAI_API_KEY=$OPENAI_API_KEY,COSMOS_ENDPOINT=$COSMOS_ENDPOINT,COSMOS_KEY=$COSMOS_KEY,COSMOS_DATABASE=$COSMOS_DATABASE,COSMOS_GRAPH=$COSMOS_GRAPH,DYNAMODB_SESSION_TABLE=$DYNAMODB_SESSION_TABLE}"
+
 aws lambda update-function-configuration \
   --function-name $FUNCTION_NAME \
   --region ap-southeast-2 \
   --no-verify-ssl \
-  --environment "Variables={TELEGRAM_BOT_TOKEN=$TELEGRAM_BOT_TOKEN,OPENAI_API_KEY=$OPENAI_API_KEY,COSMOS_ENDPOINT=$COSMOS_ENDPOINT,COSMOS_KEY=$COSMOS_KEY,COSMOS_DATABASE=$COSMOS_DATABASE,COSMOS_GRAPH=$COSMOS_GRAPH,DYNAMODB_SESSION_TABLE=$DYNAMODB_SESSION_TABLE}" \
+  --environment "$ENV_VARS" \
+  --output text --query 'FunctionName'
+
+aws lambda update-function-configuration \
+  --function-name "aels-quiz-scheduler" \
+  --region ap-southeast-2 \
+  --no-verify-ssl \
+  --environment "$ENV_VARS" \
   --output text --query 'FunctionName'
 
 echo "=== Done! ==="

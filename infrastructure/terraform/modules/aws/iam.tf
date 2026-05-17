@@ -27,7 +27,8 @@ resource "aws_iam_role_policy" "lambda_dynamodb" {
       Action = [
         "dynamodb:GetItem",
         "dynamodb:PutItem",
-        "dynamodb:DeleteItem"
+        "dynamodb:DeleteItem",
+        "dynamodb:UpdateItem"
       ]
       Resource = "arn:aws:dynamodb:ap-southeast-2:813668016503:table/aels-sessions"
     }]
