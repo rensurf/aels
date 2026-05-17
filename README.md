@@ -72,18 +72,23 @@ EventBridge (cron 8AM AEST) → Quiz Scheduler Lambda
 ## Key Engineering Decisions
 
 **Why a graph database instead of relational?**
+
 Phrases have relationships — a phrase can belong to multiple topics, link to related phrases, and connect to a user's learning history. Graph traversal makes queries like "find phrases related to what I'm struggling with" natural. CosmosDB's Gremlin API gives managed, scalable graph storage without running infrastructure.
 
 **Why SM-2 for review scheduling?**
+
 SM-2 is the algorithm behind Anki. It tracks per-phrase `ease_factor`, `interval`, and `repetitions`, and adjusts how soon you see a phrase again based on how well you answered. Correct answers push the interval out exponentially; wrong answers reset it. This concentrates review time where it's actually needed.
 
 **Why Agent Framework instead of raw API calls?**
+
 The agent pattern cleanly separates concerns: the `Client` handles the LLM API, the `Agent` defines instructions and tools, and the `Session` holds conversation history. Swapping GPT-4o for another model only requires changing the `Client`. Tool functions are plain Python — no special decorators, just type annotations and docstrings that become the schema.
 
 **Why AWS Lambda instead of a server?**
+
 A Telegram bot has bursty, unpredictable traffic. Lambda scales to zero when idle (cost: $0), and scales out instantly on demand. The 29-second timeout is set to match Telegram's 30-second webhook deadline.
 
 **Why split AWS and Azure?**
+
 AWS Lambda + DynamoDB for compute and sessions (region: ap-southeast-2). Azure CosmosDB for the graph because the Gremlin API is unique to CosmosDB — no equivalent in AWS. Terraform manages both providers in one `apply`.
 
 ---
@@ -106,7 +111,6 @@ AWS Lambda + DynamoDB for compute and sessions (region: ap-southeast-2). Azure C
 ## Current Limitations
 
 - **Shallow graph usage** — phrases and SM-2 data are stored, but pattern relationships (e.g. "blocked on / depends on / work on → same preposition pattern") are not yet modelled as graph nodes
-- **Single user** — user routing assumes one user; multi-user support requires session isolation
 - **No observability** — logging is CloudWatch only; no structured tracing or alerting
 
 ---
