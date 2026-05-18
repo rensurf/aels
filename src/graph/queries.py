@@ -1,5 +1,4 @@
 from datetime import date, datetime, timezone
-from gremlin_python.process.traversal import Order
 
 
 def _esc(value: str) -> str:
