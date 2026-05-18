@@ -1,3 +1,5 @@
+data "aws_caller_identity" "current" {}
+
 resource "aws_iam_role" "lambda" {
   name = "aels-lambda-role"
 
@@ -30,7 +32,7 @@ resource "aws_iam_role_policy" "lambda_dynamodb" {
         "dynamodb:DeleteItem",
         "dynamodb:UpdateItem"
       ]
-      Resource = "arn:aws:dynamodb:ap-southeast-2:813668016503:table/aels-sessions"
+      Resource = "arn:aws:dynamodb:ap-southeast-2:${data.aws_caller_identity.current.account_id}:table/aels-sessions"
     }]
   })
 }

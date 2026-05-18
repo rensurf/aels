@@ -43,8 +43,7 @@ S3_KEY="deployment.zip"
 echo "=== Uploading zip to S3 ==="
 aws s3 cp $ZIP_FILE s3://$S3_BUCKET/$S3_KEY \
   --region ap-southeast-2 \
-  --no-verify-ssl
-
+  
 echo "=== Updating Lambda from S3 ==="
 aws lambda update-function-code \
   --function-name $FUNCTION_NAME \

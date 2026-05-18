@@ -3,6 +3,7 @@ import uuid
 from src.config import COSMOS_DATABASE, COSMOS_ENDPOINT, COSMOS_GRAPH, COSMOS_KEY
 from src.graph import queries
 from src.graph.client import GremlinClient
+from src.graph.queries import _esc
 
 
 client = GremlinClient(endpoint=COSMOS_ENDPOINT,
@@ -11,7 +12,7 @@ client = GremlinClient(endpoint=COSMOS_ENDPOINT,
                        graph=COSMOS_GRAPH)
 
 def _ensure_user_exists(user_id: str) -> None:
-    existing = client.execute(f"g.V().has('user', 'user_id', '{user_id}')")
+    existing = client.execute(f"g.V().has('user', 'user_id', '{_esc(user_id)}')")
     if not existing:
         client.execute(queries.create_user(user_id=user_id, name=user_id, goal="Work in Australia"))
 

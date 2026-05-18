@@ -1,4 +1,5 @@
-from datetime import date
+from datetime import date, datetime, timezone
+from gremlin_python.process.traversal import Order
 
 
 def _esc(value: str) -> str:
@@ -18,6 +19,7 @@ def get_all_users() -> str:
     return "g.V().hasLabel('user').valueMap()"
 
 def create_phrase(phrase_id: str, text: str, japanese: str, context: str, note: str, user_id: str) -> str:
+    now = datetime.now(timezone.utc).isoformat()
     query = f"""
     g.addV('phrase')
      .property('phrase_id', '{_esc(phrase_id)}')
@@ -26,6 +28,7 @@ def create_phrase(phrase_id: str, text: str, japanese: str, context: str, note: 
      .property('japanese', '{_esc(japanese)}')
      .property('context', '{_esc(context)}')
      .property('note', '{_esc(note)}')
+     .property('created_at', '{now}')
     """
     return query
 
@@ -55,7 +58,7 @@ def get_recent_phrases(user_id: str, limit: int) -> str:
     query = f"""
     g.V().has('user', 'user_id', '{_esc(user_id)}')
      .out('learned_phrase')
-     .order().by('created_at', decr)
+     .order().by('created_at', Order.desc)
      .limit({limit})
      .valueMap()
     """
