@@ -1,5 +1,7 @@
 # AELS — Autonomous English Learning System
 
+[![CI](https://github.com/rensurf/aels/actions/workflows/ci.yml/badge.svg)](https://github.com/rensurf/aels/actions/workflows/ci.yml)
+
 A Telegram bot that acts as a personal English teacher. It remembers phrases from your conversations, quizzes you using SM-2 spaced repetition, and grades your answers with GPT-4o.
 
 ---
