@@ -15,7 +15,7 @@ def _ensure_user_exists(user_id: str) -> None:
     if not existing:
         client.execute(queries.create_user(user_id=user_id, name=user_id, goal="Work in Australia"))
 
-def save_phrases(phrases: list[dict], user_id: str) -> None:
+def save_phrases(phrases: list[dict], user_id: str) -> str:
     """
     Save English phrases to the user's knowledge graph.
 
@@ -39,6 +39,7 @@ def save_phrases(phrases: list[dict], user_id: str) -> None:
             user_id=user_id
         ))
         client.execute(queries.link_user_to_phrase(user_id=user_id, phrase_id=phrase_id))
+    return f"Saved {len(phrases)} phrase(s) successfully."
 
 def search_phrases(query_text: str, user_id: str) -> list[dict]:
     result = client.execute(queries.search_phrases(user_id=user_id, query_text=query_text))

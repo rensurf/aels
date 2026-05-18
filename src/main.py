@@ -22,6 +22,10 @@ def _send_thinking(chat_id: str) -> int:
 
 def lambda_handler(event, context):
     body = json.loads(event["body"])
+    update_id = body.get("update_id", 0)
+    if session_client.is_duplicate_update(update_id):
+        return {"statusCode": 200}
+
     chat_id = str(body["message"]["chat"]["id"])
     user_id = str(body["message"]["from"]["id"])
     text = body["message"].get("text", "")

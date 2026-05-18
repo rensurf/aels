@@ -1,11 +1,12 @@
 import time
 
 import boto3
+from botocore.exceptions import ClientError
 
 
 class SessionClient:
     def __init__(self, table_name: str):
-        self.table= boto3.resource("dynamodb").Table(table_name)
+        self.table = boto3.resource("dynamodb").Table(table_name)
     
     def load_session(self, chat_id: str) -> list[dict]:
         response = self.table.get_item(Key={"chat_id": chat_id})
@@ -38,3 +39,15 @@ class SessionClient:
             Key={"chat_id": chat_id},
             UpdateExpression="REMOVE quiz_state"
         )
+
+    def is_duplicate_update(self, update_id: int) -> bool:
+        try:
+            self.table.put_item(
+                Item={"chat_id": f"upd_{update_id}", "ttl": int(time.time()) + 86400},
+                ConditionExpression="attribute_not_exists(chat_id)"
+            )
+            return False
+        except ClientError as e:
+            if e.response["Error"]["Code"] == "ConditionalCheckFailedException":
+                return True
+            raise
