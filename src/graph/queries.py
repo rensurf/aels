@@ -82,3 +82,50 @@ def update_sm2(user_id: str, phrase_id: str, ease_factor: float, interval: int, 
      .property('due_date', '{_esc(due_date)}')
     """
     return query
+
+def get_all_sm2_data(user_id: str) -> str:
+    """Returns SM-2 edge properties per phrase (scalar values, not arrays)."""
+    query = f"""
+    g.V().has('user', 'user_id', '{_esc(user_id)}')
+     .outE('learned_phrase').as('e')
+     .inV()
+     .project('phrase_id', 'ease_factor', 'interval', 'repetitions', 'due_date')
+     .by(values('phrase_id'))
+     .by(select('e').values('ease_factor'))
+     .by(select('e').values('interval'))
+     .by(select('e').values('repetitions'))
+     .by(select('e').values('due_date'))
+    """
+    return query
+
+def create_pattern(pattern_id: str, name: str, user_id: str) -> str:
+    query = f"""
+    g.addV('pattern')
+     .property('pattern_id', '{_esc(pattern_id)}')
+     .property('name', '{_esc(name)}')
+     .property('user_id', '{_esc(user_id)}')
+    """
+    return query
+
+def find_pattern(name: str, user_id: str) -> str:
+    return f"g.V().has('pattern', 'name', '{_esc(name)}').has('user_id', '{_esc(user_id)}').valueMap()"
+
+def link_phrase_to_pattern(phrase_id: str, pattern_id: str) -> str:
+    query = f"""
+    g.V().has('phrase', 'phrase_id', '{_esc(phrase_id)}')
+     .addE('uses_pattern')
+     .to(g.V().has('pattern', 'pattern_id', '{_esc(pattern_id)}'))
+    """
+    return query
+
+def get_phrase_patterns(user_id: str) -> str:
+    """Returns phrase_id → pattern name for all phrases that have a pattern linked."""
+    query = f"""
+    g.V().has('user', 'user_id', '{_esc(user_id)}')
+     .out('learned_phrase').as('p')
+     .out('uses_pattern')
+     .project('phrase_id', 'pattern_name')
+     .by(select('p').values('phrase_id'))
+     .by(values('name'))
+    """
+    return query

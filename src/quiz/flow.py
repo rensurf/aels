@@ -19,22 +19,41 @@ _graph = GremlinClient(
 
 def start_quiz(chat_id: str, user_id: str) -> None:
     today = date.today().isoformat()
-    all_phrases = _graph.execute(queries.get_all_phrases(user_id))
-    phrases = [p for p in all_phrases if p.get("due_date", ["0000-00-00"])[0] <= today]
 
-    if not phrases:
+    sm2_rows = _graph.execute(queries.get_all_sm2_data(user_id))
+    phrase_rows = _graph.execute(queries.get_all_phrases(user_id))
+    phrase_by_id = {p["phrase_id"][0]: p for p in phrase_rows}
+
+    # Merge SM-2 edge data into phrase dicts and filter by due date
+    due_phrases = []
+    for sm2 in sm2_rows:
+        if sm2.get("due_date", "0000-00-00") <= today:
+            phrase_id = sm2["phrase_id"]
+            phrase = phrase_by_id.get(phrase_id, {})
+            due_phrases.append({
+                **phrase,
+                "ease_factor": [sm2.get("ease_factor", 2.5)],
+                "interval": [sm2.get("interval", 0)],
+                "repetitions": [sm2.get("repetitions", 0)],
+                "due_date": [sm2.get("due_date", today)],
+            })
+
+    # Weakest phrases first (lowest ease_factor = answered wrong most often)
+    due_phrases.sort(key=lambda p: float(p.get("ease_factor", [2.5])[0]))
+
+    if not due_phrases:
         _send(chat_id, "No phrases due for review today. Keep chatting to learn more!")
         return
 
-    phrase_ids = [p["phrase_id"][0] for p in phrases]
+    phrase_ids = [p["phrase_id"][0] for p in due_phrases]
     _session.set_quiz_state(chat_id, {
         "pending_phrases": phrase_ids,
         "current_phrase_id": phrase_ids[0],
         "user_id": user_id,
-        "phrases": {p["phrase_id"][0]: p for p in phrases},
+        "phrases": {p["phrase_id"][0]: p for p in due_phrases},
     })
 
-    _send_question(chat_id, phrases[0])
+    _send_question(chat_id, due_phrases[0])
 
 
 def handle_quiz_answer(chat_id: str, user_answer: str) -> None:
