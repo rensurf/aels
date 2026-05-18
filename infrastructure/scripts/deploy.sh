@@ -50,8 +50,11 @@ aws lambda update-function-code \
   --s3-bucket $S3_BUCKET \
   --s3-key $S3_KEY \
   --region ap-southeast-2 \
-  --no-verify-ssl \
   --output text --query 'FunctionName'
+
+aws lambda wait function-updated \
+  --function-name $FUNCTION_NAME \
+  --region ap-southeast-2
 
 echo "=== Updating quiz scheduler Lambda from S3 ==="
 aws lambda update-function-code \
@@ -59,8 +62,11 @@ aws lambda update-function-code \
   --s3-bucket $S3_BUCKET \
   --s3-key $S3_KEY \
   --region ap-southeast-2 \
-  --no-verify-ssl \
   --output text --query 'FunctionName'
+
+aws lambda wait function-updated \
+  --function-name "aels-quiz-scheduler" \
+  --region ap-southeast-2
 
 echo "=== Setting environment variables ==="
 source .env
@@ -69,14 +75,18 @@ ENV_VARS="Variables={TELEGRAM_BOT_TOKEN=$TELEGRAM_BOT_TOKEN,OPENAI_API_KEY=$OPEN
 aws lambda update-function-configuration \
   --function-name $FUNCTION_NAME \
   --region ap-southeast-2 \
-  --no-verify-ssl \
+  --memory-size 512 \
   --environment "$ENV_VARS" \
   --output text --query 'FunctionName'
+
+aws lambda wait function-updated \
+  --function-name $FUNCTION_NAME \
+  --region ap-southeast-2
 
 aws lambda update-function-configuration \
   --function-name "aels-quiz-scheduler" \
   --region ap-southeast-2 \
-  --no-verify-ssl \
+  --memory-size 512 \
   --environment "$ENV_VARS" \
   --output text --query 'FunctionName'
 
