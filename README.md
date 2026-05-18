@@ -39,11 +39,13 @@ The goal isn't a smarter flashcard app. It's a teacher that shows up.
 - **Translate** — ask in Japanese, get multiple English options with context notes
 - **Q&A** — ask about grammar, nuance, or usage in natural language
 - **Save phrases** — the teacher saves phrases to a graph database during conversation
+- **Pattern classification** — each saved phrase is automatically classified into a linguistic pattern (preposition, phrasal verb, collocation, formal/informal, tense, modal verb, article, verb pattern) using GPT-4o
 - **Search memory** — recall past phrases by topic or keyword
 - **Daily quiz** — proactive review at 8AM via EventBridge cron
 - **On-demand review** — `/review` triggers a quiz session anytime
-- **SM-2 scheduling** — each phrase tracks `ease_factor`, `interval`, and `due_date`; correct answers push the interval out, wrong answers reset it
+- **SM-2 scheduling** — each phrase tracks `ease_factor`, `interval`, and `due_date`; correct answers push the interval out, wrong answers reset it; weakest phrases are prioritised in quiz order
 - **GPT-4o evaluation** — free-text answers are graded as correct / close / wrong (handles paraphrasing)
+- **Weakness analysis** — ask "what am I struggling with?" to get a breakdown of patterns with the lowest SM-2 ease_factor
 
 ---
 
@@ -63,7 +65,8 @@ AWS Lambda (Python 3.12)
    ├─ TeacherAgent         — Microsoft Agent Framework + GPT-4o
    │      ├─ TranslateTool     JP→EN with multiple register options
    │      ├─ QATool            English grammar Q&A
-   │      └─ MemoryTool        read/write phrases to graph DB
+   │      ├─ MemoryTool        read/write phrases + classify patterns at save time
+   │      └─ WeaknessTool      aggregate SM-2 ease_factor by pattern → surface weak areas
    │
    ├─ QuizFlow             — SM-2 spaced repetition review sessions
    │      ├─ SM2 Algorithm     calculates next review interval
@@ -74,6 +77,8 @@ AWS Lambda (Python 3.12)
    └─ Azure CosmosDB (Gremlin API)
           — phrase knowledge graph
             (user) -[learned_phrase]-> (phrase {ease_factor, interval, due_date})
+                                          │
+                                          └─[uses_pattern]→ (pattern {name})
 
 EventBridge (cron 8AM AEST) → Quiz Scheduler Lambda
                                    └─ fetches due phrases → sends first question
@@ -85,7 +90,7 @@ EventBridge (cron 8AM AEST) → Quiz Scheduler Lambda
 
 **Why a graph database instead of relational?**
 
-Phrases have relationships — a phrase can belong to multiple topics, link to related phrases, and connect to a user's learning history. Graph traversal makes queries like "find phrases related to what I'm struggling with" natural. CosmosDB's Gremlin API gives managed, scalable graph storage without running infrastructure.
+Phrases have relationships that go beyond rows and foreign keys. Each phrase is linked to a linguistic pattern node via a `uses_pattern` edge, and SM-2 data lives on the `learned_phrase` edge itself. Weakness analysis works by traversing `user → learned_phrase edge (ease_factor) → phrase → uses_pattern → pattern` and aggregating — a query that maps naturally to graph traversal. CosmosDB's Gremlin API gives managed, scalable graph storage without running infrastructure.
 
 **Why SM-2 for review scheduling?**
 
@@ -122,15 +127,15 @@ AWS Lambda + DynamoDB for compute and sessions (region: ap-southeast-2). Azure C
 
 ## Current Limitations
 
-- **Shallow graph usage** — phrases and SM-2 data are stored, but pattern relationships (e.g. "blocked on / depends on / work on → same preposition pattern") are not yet modelled as graph nodes
+- **verb_pattern review** — phrases tagged as `verb_pattern` are reviewed individually like other patterns; set-based review (e.g. "list all complement structures for 'suggest'") requires a separate quiz mode and verb-centric graph structure, not yet implemented
 - **No observability** — logging is CloudWatch only; no structured tracing or alerting
 
 ---
 
 ## Next Steps
 
-- Add `mistake_pattern` nodes to the graph to surface recurring error patterns
-- Weakness analysis report sent weekly via Telegram
+- Weekly weakness report sent via Telegram — surface the patterns with the most struggling phrases
+- verb_pattern set-based review — quiz the full range of complement structures for a single verb
 - Teaching style adaptation based on conversation history
 
 ---
