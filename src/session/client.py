@@ -1,7 +1,18 @@
 import time
+from decimal import Decimal
 
 import boto3
 from botocore.exceptions import ClientError
+
+
+def _to_decimal(obj):
+    if isinstance(obj, float):
+        return Decimal(str(obj))
+    if isinstance(obj, dict):
+        return {k: _to_decimal(v) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [_to_decimal(i) for i in obj]
+    return obj
 
 
 class SessionClient:
@@ -31,7 +42,7 @@ class SessionClient:
         self.table.update_item(
             Key={"chat_id": chat_id},
             UpdateExpression="SET quiz_state = :qs",
-            ExpressionAttributeValues={":qs": quiz_state}
+            ExpressionAttributeValues={":qs": _to_decimal(quiz_state)}
         )
 
     def clear_quiz_state(self, chat_id: str) -> None:

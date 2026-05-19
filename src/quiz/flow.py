@@ -46,14 +46,16 @@ def start_quiz(chat_id: str, user_id: str) -> None:
         return
 
     phrase_ids = [p["phrase_id"][0] for p in due_phrases]
+    phrases_map = {p["phrase_id"][0]: p for p in due_phrases}
     _session.set_quiz_state(chat_id, {
         "pending_phrases": phrase_ids,
         "current_phrase_id": phrase_ids[0],
         "user_id": user_id,
-        "phrases": {p["phrase_id"][0]: p for p in due_phrases},
+        "phrases": phrases_map,
     })
 
-    _send_question(chat_id, due_phrases[0])
+    same_count = _count_same_japanese(phrases_map, phrase_ids, due_phrases[0]["japanese"][0])
+    _send_question(chat_id, due_phrases[0], same_count)
 
 
 def handle_quiz_answer(chat_id: str, user_answer: str) -> None:
@@ -62,51 +64,87 @@ def handle_quiz_answer(chat_id: str, user_answer: str) -> None:
         return
 
     user_id = quiz_state["user_id"]
-    phrase_id = quiz_state["current_phrase_id"]
-    phrase = quiz_state["phrases"][phrase_id]
+    current_id = quiz_state["current_phrase_id"]
+    current_phrase = quiz_state["phrases"][current_id]
+    japanese = current_phrase["japanese"][0]
+    pending = list(quiz_state["pending_phrases"])
 
-    japanese = phrase["japanese"][0]
-    expected = phrase["text"][0]
+    # Build candidates from all pending phrases with same Japanese
+    candidates = [
+        {"phrase_id": pid, "text": quiz_state["phrases"][pid]["text"][0]}
+        for pid in pending
+        if quiz_state["phrases"][pid]["japanese"][0] == japanese
+    ]
 
-    quality = evaluate_answer(japanese=japanese, expected=expected, user_answer=user_answer)
+    eval_result = evaluate_answer(japanese=japanese, candidates=candidates, user_answer=user_answer)
+
+    # Determine which phrase to record: matched one, or current if wrong
+    target_id = eval_result.matched_phrase_id if eval_result.matched_phrase_id else current_id
+    target_phrase = quiz_state["phrases"][target_id]
+
     result = calculate_next_review(
-        ease_factor=float(phrase.get("ease_factor", [2.5])[0]),
-        interval=int(phrase.get("interval", [0])[0]),
-        repetitions=int(phrase.get("repetitions", [0])[0]),
-        quality=quality,
+        ease_factor=float(target_phrase.get("ease_factor", [2.5])[0]),
+        interval=int(target_phrase.get("interval", [0])[0]),
+        repetitions=int(target_phrase.get("repetitions", [0])[0]),
+        quality=eval_result.quality,
     )
     _graph.execute(queries.update_sm2(
         user_id=user_id,
-        phrase_id=phrase_id,
+        phrase_id=target_id,
         ease_factor=result.ease_factor,
         interval=result.interval,
         repetitions=result.repetitions,
         due_date=result.due_date,
     ))
 
-    if quality >= 3:
+    target_text = target_phrase["text"][0]
+    if eval_result.quality == 5:
         _send(chat_id, f"✅ Correct! Next review in {result.interval} day(s).")
+    elif eval_result.quality == 3:
+        msg = f"🟡 Close! Expected: *{target_text}*"
+        if eval_result.note:
+            msg += f"\n{eval_result.note}"
+        msg += f"\nNext review in {result.interval} day(s)."
+        _send(chat_id, msg)
     else:
-        _send(chat_id, f"❌ The answer was: *{expected}*. You'll see this again soon.")
+        msg = f"❌ The answer was: *{target_text}*."
+        if eval_result.note:
+            msg += f"\n{eval_result.note}"
+        msg += "\nYou'll see this again soon."
+        _send(chat_id, msg)
 
-    pending = quiz_state["pending_phrases"]
-    current_index = pending.index(phrase_id)
-    remaining = pending[current_index + 1:]
+    quiz_state["last_feedback"] = {
+        "japanese": japanese,
+        "user_answer": user_answer,
+        "expected": target_text,
+        "note": eval_result.note,
+    }
 
-    if not remaining:
+    pending.remove(target_id)
+
+    if not pending:
         _finish_quiz(chat_id)
         return
 
-    next_id = remaining[0]
+    next_id = pending[0]
+    quiz_state["pending_phrases"] = pending
     quiz_state["current_phrase_id"] = next_id
-    quiz_state["pending_phrases"] = remaining
     _session.set_quiz_state(chat_id, quiz_state)
-    _send_question(chat_id, quiz_state["phrases"][next_id])
+
+    next_phrase = quiz_state["phrases"][next_id]
+    next_japanese = next_phrase["japanese"][0]
+    same_count = _count_same_japanese(quiz_state["phrases"], pending, next_japanese)
+    _send_question(chat_id, next_phrase, same_count)
 
 
-def _send_question(chat_id: str, phrase: dict) -> None:
+def _count_same_japanese(phrases_map: dict, pending: list, japanese: str) -> int:
+    return sum(1 for pid in pending if phrases_map[pid]["japanese"][0] == japanese)
+
+
+def _send_question(chat_id: str, phrase: dict, same_count: int = 1) -> None:
     japanese = phrase["japanese"][0]
-    _send(chat_id, f"🇯🇵 {japanese}\n\nHow do you say this in English?")
+    hint = f"（あと{same_count}フレーズ）" if same_count > 1 else ""
+    _send(chat_id, f"🇯🇵 {japanese}{hint}\n\nHow do you say this in English?")
 
 
 def _finish_quiz(chat_id: str) -> None:

@@ -16,6 +16,14 @@ uv pip install -r requirements.txt \
   --python-version 3.12 \
   --quiet
 
+echo "=== Re-installing agent-framework-core (fix __init__.py overwrite) ==="
+uv pip install agent-framework-core==1.2.1 \
+  --target $BUILD_DIR \
+  --python-platform x86_64-manylinux2014 \
+  --python-version 3.12 \
+  --reinstall \
+  --quiet
+
 echo "=== Removing unnecessary packages ==="
 rm -rf $BUILD_DIR/claude_agent_sdk
 rm -rf $BUILD_DIR/claude_agent_sdk-*

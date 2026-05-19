@@ -7,6 +7,7 @@ from src.agent.teacher_agent import handle_message
 from src.config import DYNAMODB_SESSION_TABLE, TELEGRAM_BOT_TOKEN
 from src.session.client import SessionClient
 from src.quiz.flow import start_quiz, handle_quiz_answer
+from src.quiz.intent import detect_intent
 
 adapter = TelegramAdapter(token=TELEGRAM_BOT_TOKEN)
 session_client = SessionClient(table_name=DYNAMODB_SESSION_TABLE)
@@ -32,13 +33,35 @@ def lambda_handler(event, context):
 
     # --- routing ---
     if text == "/review":
-        start_quiz(chat_id, user_id)
+        try:
+            start_quiz(chat_id, user_id)
+        except Exception as e:
+            print(f"[/review] start_quiz failed: {e}")
+            requests.post(
+                f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage",
+                json={"chat_id": chat_id, "text": f"エラーが発生しました: {e}"},
+            )
         return {"statusCode": 200}
 
     quiz_state = session_client.get_quiz_state(chat_id)
     if quiz_state:
-        handle_quiz_answer(chat_id, text)
-        return {"statusCode": 200}
+        try:
+            intent = detect_intent(text, quiz_state)
+        except Exception as e:
+            print(f"[quiz] detect_intent failed: {e}")
+            intent = "answer"
+
+        if intent == "answer":
+            try:
+                handle_quiz_answer(chat_id, text)
+            except Exception as e:
+                print(f"[quiz] handle_quiz_answer failed: {e}")
+                requests.post(
+                    f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage",
+                    json={"chat_id": chat_id, "text": f"クイズ処理中にエラーが発生しました: {e}"},
+                )
+            return {"statusCode": 200}
+        # intent == "question": fall through to Teacher Agent with quiz context
     # --- end routing ---
 
     try:
@@ -51,6 +74,17 @@ def lambda_handler(event, context):
         bot = Bot(token=TELEGRAM_BOT_TOKEN)
         try:
             incoming = adapter.receive(body)
+            if quiz_state:
+                last_feedback = quiz_state.get("last_feedback")
+                if last_feedback:
+                    incoming.text = (
+                        f"[Quiz context]\n"
+                        f"Question: 「{last_feedback['japanese']}」\n"
+                        f"My answer: \"{last_feedback['user_answer']}\"\n"
+                        f"Feedback: {last_feedback['note']} (Expected: \"{last_feedback['expected']}\")\n"
+                        f"---\n"
+                        f"{incoming.text}"
+                    )
             messages = session_client.load_session(chat_id)
             response, session = await handle_message(incoming, messages)
             session_client.save_session(chat_id, session.to_dict())
