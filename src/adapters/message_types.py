@@ -7,7 +7,7 @@ class IncomingMessage:
     text: str
     user_id: str
     message_id: str
-    timestamp: datetime
+    timestamp: datetime | None
 
 @dataclass
 class OutgoingMessage:

@@ -5,14 +5,14 @@ mock_client.execute.return_value = []
 
 with patch("src.tools.memory_tool.client", mock_client):
     from src.tools.memory_tool import (
-        save_phrases,
+        do_save_phrases,
         search_phrases,
         _classify_pattern,
         get_weakness_summary,
     )
 
 
-def test_save_phrases_calls_execute_twice():
+def test_do_save_phrases_executes_graph_queries():
     mock_client.reset_mock()
     phrases = [{"text": "Got it", "japanese": "承知しました", "context": "casual", "note": "Common"}]
 
@@ -20,7 +20,7 @@ def test_save_phrases_calls_execute_twice():
         with patch("src.tools.memory_tool._classify_pattern", return_value="formal_informal"):
             with patch("src.tools.memory_tool._get_or_create_pattern", return_value="pat1"):
                 with patch("src.tools.memory_tool.client", mock_client):
-                    save_phrases(phrases, user_id="u1")
+                    do_save_phrases(phrases, user_id="u1")
 
     # create_phrase + link_user_to_phrase + link_phrase_to_pattern = 3 calls per phrase
     assert mock_client.execute.call_count == 3

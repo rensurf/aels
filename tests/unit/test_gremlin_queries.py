@@ -25,16 +25,15 @@ def test_link_uses_learned_phrase_edge():
     assert "p1" in result
 
 
-def test_search_phrases_contains_textContains():
-    result = queries.search_phrases("u1", "Got")
-    assert "textContains('Got')" in result
+def test_search_phrases_contains_user_id():
+    result = queries.search_phrases("u1")
+    assert "learned_phrase" in result
     assert "u1" in result
 
 
-def test_get_recent_phrases_uses_order_desc():
-    result = queries.get_recent_phrases("u1", 5)
-    assert "Order.desc" in result
-    assert "limit(5)" in result
+def test_get_recent_phrases_contains_user_id():
+    result = queries.get_recent_phrases("u1")
+    assert "learned_phrase" in result
     assert "u1" in result
 
 
