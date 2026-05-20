@@ -38,11 +38,12 @@ The goal isn't a smarter flashcard app. It's a teacher that shows up.
 
 - **Translate** — ask in Japanese, get multiple English options with context notes
 - **Q&A** — ask about grammar, nuance, or usage in natural language
-- **Save phrases** — the teacher saves phrases to a graph database during conversation
+- **Selective phrase saving** — after translation, choose which phrases to save via inline checkboxes; only selected ones are written to the knowledge graph
 - **Pattern classification** — each saved phrase is automatically classified into a linguistic pattern (preposition, phrasal verb, collocation, formal/informal, tense, modal verb, article, verb pattern) using GPT-4o
 - **Search memory** — recall past phrases by topic or keyword
 - **Daily quiz** — proactive review at 8AM via EventBridge cron
 - **On-demand review** — `/review` triggers a quiz session anytime
+- **Session reset** — `/reset` clears conversation history when the context grows too long
 - **SM-2 scheduling** — each phrase tracks `ease_factor`, `interval`, and `due_date`; correct answers push the interval out, wrong answers reset it; weakest phrases are prioritised in quiz order
 - **GPT-4o evaluation** — free-text answers are graded as correct / close / wrong (handles paraphrasing)
 - **Weakness analysis** — ask "what am I struggling with?" to get a breakdown of patterns with the lowest SM-2 ease_factor
@@ -58,29 +59,38 @@ Telegram
 AWS API Gateway
    │
    ▼ invoke
-AWS Lambda (Python 3.12)
+Lambda A — aels-teacher  (receiver, fast response)
    │
-   ├─ TelegramAdapter      — parses incoming messages, routes to agent or quiz
+   ├─ /reset, /review commands — handled inline
+   ├─ Inline button callbacks (phrase toggle / confirm / cancel)
+   │      └─ AWS DynamoDB    — read/write pending_phrases, quiz_state, session
    │
-   ├─ TeacherAgent         — Microsoft Agent Framework + GPT-4o
-   │      ├─ TranslateTool     JP→EN with multiple register options
-   │      ├─ QATool            English grammar Q&A
-   │      ├─ MemoryTool        read/write phrases + classify patterns at save time
-   │      └─ WeaknessTool      aggregate SM-2 ease_factor by pattern → surface weak areas
-   │
-   ├─ QuizFlow             — SM-2 spaced repetition review sessions
-   │      ├─ SM2 Algorithm     calculates next review interval
-   │      └─ GPT-4o Evaluator  grades free-text answers (correct/close/wrong)
-   │
-   ├─ AWS DynamoDB         — conversation session storage (multi-turn context)
-   │
-   └─ Azure CosmosDB (Gremlin API)
-          — phrase knowledge graph
-            (user) -[learned_phrase]-> (phrase {ease_factor, interval, due_date})
-                                          │
-                                          └─[uses_pattern]→ (pattern {name})
+   └─ Normal messages → SQS queue
+                            │
+                            ▼
+                        Lambda B — aels-worker  (LLM processing)
+                            │
+                            ├─ TeacherAgent     — Microsoft Agent Framework + GPT-4o
+                            │      ├─ TranslateTool   JP→EN with multiple register options
+                            │      ├─ QATool          English grammar Q&A
+                            │      ├─ MemoryTool      read/write phrases + classify patterns
+                            │      └─ WeaknessTool    aggregate SM-2 ease_factor by pattern
+                            │
+                            ├─ QuizFlow         — SM-2 spaced repetition review sessions
+                            │      ├─ SM2 Algorithm     calculates next review interval
+                            │      └─ GPT-4o Evaluator  grades free-text answers
+                            │
+                            └─ AWS DynamoDB     — session (turn_count, messages), pending_phrases
 
-EventBridge (cron 8AM AEST) → Quiz Scheduler Lambda
+AWS DynamoDB
+   — session storage: conversation history, turn count, pending phrases, quiz state
+
+Azure CosmosDB (Gremlin API)
+   — phrase knowledge graph
+     (user) -[learned_phrase]-> (phrase {ease_factor, interval, due_date})
+                                    └─[uses_pattern]→ (pattern {name})
+
+EventBridge (cron 8AM AEST) → aels-quiz-scheduler Lambda
                                    └─ fetches due phrases → sends first question
 ```
 
