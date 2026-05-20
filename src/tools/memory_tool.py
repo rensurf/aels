@@ -51,7 +51,7 @@ Categories:
 Respond with exactly one word from the list above."""
 
         response = oai.chat.completions.create(
-            model="gpt-4o",
+            model="gpt-4o-mini",
             messages=[{"role": "user", "content": prompt}],
             max_tokens=10,
         )
@@ -70,18 +70,8 @@ def _get_or_create_pattern(name: str, user_id: str) -> str:
     return pattern_id
 
 
-def save_phrases(phrases: list[dict], user_id: str) -> str:
-    """
-    Save English phrases to the user's knowledge graph.
-
-    Args:
-        phrases: List of phrase objects, each with:
-            - text: English phrase (str)
-            - japanese: Japanese meaning (str)
-            - context: Usage context e.g. "formal", "casual" (str)
-            - note: Additional notes (str)
-        user_id: The user's Telegram user ID
-    """
+def do_save_phrases(phrases: list[dict], user_id: str) -> str:
+    """Actually persist phrases to CosmosDB. Called after user confirms via button."""
     _ensure_user_exists(user_id)
     for phrase in phrases:
         phrase_id = str(uuid.uuid4())
@@ -105,6 +95,25 @@ def save_phrases(phrases: list[dict], user_id: str) -> str:
         client.execute(queries.link_phrase_to_pattern(phrase_id=phrase_id, pattern_id=pattern_id))
 
     return f"Saved {len(phrases)} phrase(s) successfully."
+
+
+def save_phrases(phrases: list[dict], user_id: str) -> str:
+    """
+    Propose English phrases to save. The user will confirm or skip via a button.
+
+    Args:
+        phrases: List of phrase objects, each with:
+            - text: English phrase (str)
+            - japanese: Japanese meaning (str)
+            - context: Usage context e.g. "formal", "casual" (str)
+            - note: Additional notes (str)
+        user_id: The user's Telegram user ID
+    """
+    from src.session.client import SessionClient
+    from src.config import DYNAMODB_SESSION_TABLE
+    print(f"[debug] save_phrases called: user_id={user_id} phrases={phrases}")
+    SessionClient(table_name=DYNAMODB_SESSION_TABLE).set_pending_phrases(user_id, phrases)
+    return f"Queued {len(phrases)} phrase(s) for user confirmation."
 
 
 def search_phrases(query_text: str, user_id: str) -> list[dict]:

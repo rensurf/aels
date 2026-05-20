@@ -51,6 +51,23 @@ class SessionClient:
             UpdateExpression="REMOVE quiz_state"
         )
 
+    def set_pending_phrases(self, chat_id: str, phrases: list[dict]) -> None:
+        self.table.update_item(
+            Key={"chat_id": chat_id},
+            UpdateExpression="SET pending_phrases = :pp",
+            ExpressionAttributeValues={":pp": _to_decimal(phrases)}
+        )
+
+    def get_pending_phrases(self, chat_id: str) -> list[dict] | None:
+        response = self.table.get_item(Key={"chat_id": chat_id})
+        return response.get("Item", {}).get("pending_phrases")
+
+    def clear_pending_phrases(self, chat_id: str) -> None:
+        self.table.update_item(
+            Key={"chat_id": chat_id},
+            UpdateExpression="REMOVE pending_phrases"
+        )
+
     def is_duplicate_update(self, update_id: int) -> bool:
         try:
             self.table.put_item(

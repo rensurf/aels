@@ -24,16 +24,38 @@ Return JSON in this exact format:
 }
 """
 
-def translate_japanese(japanese_text: str) -> list[dict]:
+def translate_japanese(japanese_text: str, user_id: str) -> list[dict]:
+    """
+    Translate Japanese text into natural English options and queue them for saving.
+
+    Args:
+        japanese_text: The Japanese text to translate
+        user_id: The user's Telegram user ID (from [user_id=...] in the message)
+    """
     response = client.chat.completions.create(
         model="gpt-4o",
         messages=[
             {"role": "system", "content": prompt},
             {"role": "user", "content": japanese_text}
         ],
-        response_format={"type": "json_object"}  # forces JSON output
+        response_format={"type": "json_object"}
     )
     result = response.choices[0].message.content or "{}"
+    translations = json.loads(result).get("translations", [])
 
-    return json.loads(result).get("translations", [])
+    phrases = [
+        {
+            "text": t.get("text", ""),
+            "japanese": japanese_text,
+            "context": t.get("context", ""),
+            "note": t.get("note", ""),
+        }
+        for t in translations
+    ]
 
+    if phrases:
+        from src.session.client import SessionClient
+        from src.config import DYNAMODB_SESSION_TABLE
+        SessionClient(table_name=DYNAMODB_SESSION_TABLE).set_pending_phrases(user_id, phrases)
+
+    return translations

@@ -3,13 +3,13 @@ from agent_framework.openai import OpenAIChatClient
 from src.agent.prompt import TEACHER_PROMPT
 from src.tools.translate_tool import translate_japanese
 from src.tools.qa_tool import answer_english_question
-from src.tools.memory_tool import save_phrases, search_phrases, get_recent_phrases, get_weakness_summary
+from src.tools.memory_tool import search_phrases, get_recent_phrases, get_weakness_summary
 from src.adapters.message_types import IncomingMessage, OutgoingMessage
 
 agent = Agent(
     client=OpenAIChatClient(model="gpt-4o"),
     instructions=TEACHER_PROMPT,
-    tools=[translate_japanese, answer_english_question, save_phrases, search_phrases, get_recent_phrases, get_weakness_summary]
+    tools=[translate_japanese, answer_english_question, search_phrases, get_recent_phrases, get_weakness_summary]
 )
 
 async def handle_message(incoming: IncomingMessage, messages: list[dict]) -> tuple[OutgoingMessage, AgentSession]:

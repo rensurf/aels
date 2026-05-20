@@ -14,6 +14,7 @@ uv pip install -r requirements.txt \
   --target $BUILD_DIR \
   --python-platform x86_64-manylinux2014 \
   --python-version 3.12 \
+  --prerelease=allow \
   --quiet
 
 echo "=== Re-installing agent-framework-core (fix __init__.py overwrite) ==="
