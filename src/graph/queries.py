@@ -44,21 +44,18 @@ def link_user_to_phrase(user_id: str, phrase_id: str) -> str:
     """
     return query
 
-def search_phrases(user_id: str, query_text: str) -> str:
+def search_phrases(user_id: str) -> str:
     query = f"""
     g.V().has('user', 'user_id', '{_esc(user_id)}')
      .out('learned_phrase')
-     .has('text', textContains('{_esc(query_text)}'))
      .valueMap()
     """
     return query
 
-def get_recent_phrases(user_id: str, limit: int) -> str:
+def get_recent_phrases(user_id: str) -> str:
     query = f"""
     g.V().has('user', 'user_id', '{_esc(user_id)}')
      .out('learned_phrase')
-     .order().by('created_at', Order.desc)
-     .limit({limit})
      .valueMap()
     """
     return query

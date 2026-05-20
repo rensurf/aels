@@ -33,7 +33,7 @@ def translate_japanese(japanese_text: str, user_id: str) -> list[dict]:
         user_id: The user's Telegram user ID (from [user_id=...] in the message)
     """
     response = client.chat.completions.create(
-        model="gpt-4o",
+        model="gpt-4o-mini",
         messages=[
             {"role": "system", "content": prompt},
             {"role": "user", "content": japanese_text}
@@ -57,5 +57,6 @@ def translate_japanese(japanese_text: str, user_id: str) -> list[dict]:
         from src.session.client import SessionClient
         from src.config import DYNAMODB_SESSION_TABLE
         SessionClient(table_name=DYNAMODB_SESSION_TABLE).set_pending_phrases(user_id, phrases)
+        print(f"[debug] translate_japanese: saved {len(phrases)} phrases for user_id={user_id}")
 
     return translations

@@ -25,11 +25,15 @@ class SessionClient:
 
     
     def save_session(self, chat_id: str, messages: list[dict]) -> None:
-        self.table.put_item(Item={
-            "chat_id": chat_id,
-            "messages": messages,
-            "ttl": int(time.time()) + 86400
-        })
+        self.table.update_item(
+            Key={"chat_id": chat_id},
+            UpdateExpression="SET messages = :m, #t = :t",
+            ExpressionAttributeNames={"#t": "ttl"},
+            ExpressionAttributeValues={
+                ":m": _to_decimal(messages),
+                ":t": int(time.time()) + 86400,
+            },
+        )
         
     def clear_session(self, chat_id: str) -> None:
         self.table.delete_item(Key={"chat_id": chat_id})

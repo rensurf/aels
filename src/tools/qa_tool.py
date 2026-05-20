@@ -17,6 +17,7 @@ Focus on how native speakers actually use the language in daily life and at work
 """
 
 def answer_english_question(question: str) -> str:
+    print(f"[debug] answer_english_question called: question={question[:80]}")
     response = client.chat.completions.create(
         model="gpt-4o",
         messages=[

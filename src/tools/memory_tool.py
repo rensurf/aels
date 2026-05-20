@@ -117,13 +117,17 @@ def save_phrases(phrases: list[dict], user_id: str) -> str:
 
 
 def search_phrases(query_text: str, user_id: str) -> list[dict]:
-    result = client.execute(queries.search_phrases(user_id=user_id, query_text=query_text))
-    return [dict(zip(res.keys(), res.values())) for res in result]
+    result = client.execute(queries.search_phrases(user_id=user_id))
+    items = [dict(zip(res.keys(), res.values())) for res in result]
+    q = query_text.lower()
+    return [item for item in items if q in str(item.get("text", "")).lower()]
 
 
 def get_recent_phrases(user_id: str, limit: int) -> list[dict]:
-    result = client.execute(queries.get_recent_phrases(user_id=user_id, limit=limit))
-    return [dict(zip(res.keys(), res.values())) for res in result]
+    result = client.execute(queries.get_recent_phrases(user_id=user_id))
+    items = [dict(zip(res.keys(), res.values())) for res in result]
+    items.sort(key=lambda x: x.get("created_at", [""])[0], reverse=True)
+    return items[:limit]
 
 
 def get_weakness_summary(user_id: str) -> dict:

@@ -1,24 +1,22 @@
 import json
-import asyncio
 import requests
-from telegram import Bot, InlineKeyboardMarkup, InlineKeyboardButton
-from src.adapters.telegram_adapter import TelegramAdapter
-from src.agent.teacher_agent import handle_message
-from src.config import DYNAMODB_SESSION_TABLE, TELEGRAM_BOT_TOKEN
+import boto3
+from decimal import Decimal
+from src.config import DYNAMODB_SESSION_TABLE, TELEGRAM_BOT_TOKEN, SQS_WORKER_QUEUE_URL
 from src.session.client import SessionClient
 from src.quiz.flow import start_quiz, handle_quiz_answer
 from src.quiz.intent import detect_intent
 from src.tools.memory_tool import do_save_phrases
 
-adapter = TelegramAdapter(token=TELEGRAM_BOT_TOKEN)
 session_client = SessionClient(table_name=DYNAMODB_SESSION_TABLE)
+sqs = boto3.client("sqs", region_name="ap-southeast-2")
 
-_SAVE_KEYBOARD = InlineKeyboardMarkup([
-    [
-        InlineKeyboardButton("✅ 保存する", callback_data="save_phrases"),
-        InlineKeyboardButton("✗ スキップ", callback_data="discard_phrases"),
-    ]
-])
+
+class _DecimalEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, Decimal):
+            return float(obj)
+        return super().default(obj)
 
 
 def _send_thinking(chat_id: str) -> int:
@@ -44,11 +42,11 @@ def _handle_callback_query(body: dict) -> dict:
     )
 
     if data == "save_phrases":
-        pending = session_client.get_pending_phrases(chat_id)
+        pending = session_client.get_pending_phrases(user_id)
         if pending:
             try:
                 do_save_phrases(pending, user_id)
-                session_client.clear_pending_phrases(chat_id)
+                session_client.clear_pending_phrases(user_id)
                 phrase_lines = "\n".join(
                     f"• {p.get('text', '')} — {p.get('japanese', '')}"
                     for p in pending
@@ -60,7 +58,7 @@ def _handle_callback_query(body: dict) -> dict:
         else:
             suffix = "\n\n✅ 保存しました！"
     else:
-        session_client.clear_pending_phrases(chat_id)
+        session_client.clear_pending_phrases(user_id)
         suffix = "\n\n✗ スキップしました。"
 
     requests.post(
@@ -91,7 +89,6 @@ def lambda_handler(event, context):
     user_id = str(body["message"]["from"]["id"])
     text = body["message"].get("text", "")
 
-    # --- routing ---
     if text == "/review":
         try:
             start_quiz(chat_id, user_id)
@@ -121,8 +118,6 @@ def lambda_handler(event, context):
                     json={"chat_id": chat_id, "text": f"クイズ処理中にエラーが発生しました: {e}"},
                 )
             return {"statusCode": 200}
-        # intent == "question": fall through to Teacher Agent with quiz context
-    # --- end routing ---
 
     try:
         thinking_message_id = _send_thinking(chat_id)
@@ -130,63 +125,15 @@ def lambda_handler(event, context):
         print(f"Failed to send thinking message: {e}")
         return {"statusCode": 200}
 
-    async def main():
-        bot = Bot(token=TELEGRAM_BOT_TOKEN)
+    sqs.send_message(
+        QueueUrl=SQS_WORKER_QUEUE_URL,
+        MessageBody=json.dumps({
+            "chat_id": chat_id,
+            "user_id": user_id,
+            "text": text,
+            "thinking_message_id": thinking_message_id,
+            "quiz_state": quiz_state,
+        }, cls=_DecimalEncoder)
+    )
 
-        async def process():
-            incoming = adapter.receive(body)
-            if quiz_state:
-                last_feedback = quiz_state.get("last_feedback")
-                if last_feedback:
-                    incoming.text = (
-                        f"[Quiz context]\n"
-                        f"Question: 「{last_feedback['japanese']}」\n"
-                        f"My answer: \"{last_feedback['user_answer']}\"\n"
-                        f"Feedback: {last_feedback['note']} (Expected: \"{last_feedback['expected']}\")\n"
-                        f"---\n"
-                        f"{incoming.text}"
-                    )
-            messages = session_client.load_session(chat_id)
-            response, session = await handle_message(incoming, messages)
-            session_client.save_session(chat_id, session.to_dict())
-
-            pending = session_client.get_pending_phrases(chat_id)
-            if pending:
-                phrase_lines = "\n".join(
-                    f"• {p.get('text', '')} — {p.get('japanese', '')}"
-                    for p in pending
-                )
-                full_text = f"{response.text}\n\n📚 以下のフレーズを保存しますか？\n{phrase_lines}"
-                await bot.edit_message_text(
-                    chat_id=chat_id,
-                    message_id=thinking_message_id,
-                    text=full_text,
-                    reply_markup=_SAVE_KEYBOARD,
-                )
-            else:
-                await bot.edit_message_text(
-                    chat_id=chat_id,
-                    message_id=thinking_message_id,
-                    text=response.text
-                )
-
-        try:
-            await asyncio.wait_for(process(), timeout=24)
-        except asyncio.TimeoutError:
-            print("Error: process timed out")
-            await bot.edit_message_text(
-                chat_id=chat_id,
-                message_id=thinking_message_id,
-                text="⏱ 少し時間がかかりすぎました。もう一度試してください。"
-            )
-        except Exception as e:
-            print(f"Error: {e}")
-            await bot.edit_message_text(
-                chat_id=chat_id,
-                message_id=thinking_message_id,
-                text="❌ エラーが発生しました。もう一度試してください。"
-            )
-
-        return {"statusCode": 200}
-
-    return asyncio.run(main())
+    return {"statusCode": 200}

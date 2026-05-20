@@ -38,6 +38,7 @@ rm -rf $BUILD_DIR/botocore $BUILD_DIR/boto3  # already in Lambda runtime
 echo "=== Copying source files ==="
 cp -r src/ $BUILD_DIR/src/
 cp main.py $BUILD_DIR/main.py
+cp worker.py $BUILD_DIR/worker.py
 
 echo "=== Creating zip ==="
 cd $BUILD_DIR
@@ -79,7 +80,7 @@ aws lambda wait function-updated \
 
 echo "=== Setting environment variables ==="
 source .env
-ENV_VARS="Variables={TELEGRAM_BOT_TOKEN=$TELEGRAM_BOT_TOKEN,OPENAI_API_KEY=$OPENAI_API_KEY,COSMOS_ENDPOINT=$COSMOS_ENDPOINT,COSMOS_KEY=$COSMOS_KEY,COSMOS_DATABASE=$COSMOS_DATABASE,COSMOS_GRAPH=$COSMOS_GRAPH,DYNAMODB_SESSION_TABLE=$DYNAMODB_SESSION_TABLE}"
+ENV_VARS="Variables={TELEGRAM_BOT_TOKEN=$TELEGRAM_BOT_TOKEN,OPENAI_API_KEY=$OPENAI_API_KEY,COSMOS_ENDPOINT=$COSMOS_ENDPOINT,COSMOS_KEY=$COSMOS_KEY,COSMOS_DATABASE=$COSMOS_DATABASE,COSMOS_GRAPH=$COSMOS_GRAPH,DYNAMODB_SESSION_TABLE=$DYNAMODB_SESSION_TABLE,SQS_WORKER_QUEUE_URL=$SQS_WORKER_QUEUE_URL}"
 
 aws lambda update-function-configuration \
   --function-name $FUNCTION_NAME \
@@ -98,6 +99,29 @@ aws lambda update-function-configuration \
   --memory-size 512 \
   --environment "$ENV_VARS" \
   --output text --query 'FunctionName'
+
+echo "=== Updating worker Lambda from S3 ==="
+aws lambda update-function-code \
+  --function-name "aels-worker" \
+  --s3-bucket $S3_BUCKET \
+  --s3-key $S3_KEY \
+  --region ap-southeast-2 \
+  --output text --query 'FunctionName'
+
+aws lambda wait function-updated \
+  --function-name "aels-worker" \
+  --region ap-southeast-2
+
+aws lambda update-function-configuration \
+  --function-name "aels-worker" \
+  --region ap-southeast-2 \
+  --memory-size 512 \
+  --environment "$ENV_VARS" \
+  --output text --query 'FunctionName'
+
+aws lambda wait function-updated \
+  --function-name "aels-worker" \
+  --region ap-southeast-2
 
 echo "=== Done! ==="
 echo "Test: send a message to your Telegram bot"
