@@ -72,6 +72,25 @@ class SessionClient:
             UpdateExpression="REMOVE pending_phrases"
         )
 
+    def reset_session(self, chat_id: str) -> None:
+        self.table.update_item(
+            Key={"chat_id": chat_id},
+            UpdateExpression="REMOVE messages, turn_count",
+        )
+
+    def increment_turn_count(self, chat_id: str) -> int:
+        response = self.table.update_item(
+            Key={"chat_id": chat_id},
+            UpdateExpression="SET turn_count = if_not_exists(turn_count, :zero) + :one",
+            ExpressionAttributeValues={":zero": 0, ":one": 1},
+            ReturnValues="UPDATED_NEW",
+        )
+        return int(response["Attributes"]["turn_count"])
+
+    def get_turn_count(self, chat_id: str) -> int:
+        response = self.table.get_item(Key={"chat_id": chat_id})
+        return int(response.get("Item", {}).get("turn_count", 0))
+
     def is_duplicate_update(self, update_id: int) -> bool:
         try:
             self.table.put_item(

@@ -22,9 +22,22 @@ class _DecimalEncoder(json.JSONEncoder):
 def _send_thinking(chat_id: str) -> int:
     resp = requests.post(
         f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage",
-        json={"chat_id": chat_id, "text": "考えています..."}
+        json={"chat_id": chat_id, "text": "Thinking..."}
     )
     return resp.json()["result"]["message_id"]
+
+
+def _phrase_keyboard_dict(phrases: list[dict]) -> dict:
+    buttons = []
+    for i, p in enumerate(phrases):
+        mark = "☑" if p.get("selected", False) else "☐"
+        label = f"{mark} {p['text']} — {p['japanese']}"
+        buttons.append([{"text": label, "callback_data": f"toggle_phrase_{i}"}])
+    buttons.append([
+        {"text": "💾 Save selected", "callback_data": "confirm_phrases"},
+        {"text": "✗ Cancel", "callback_data": "cancel_phrases"},
+    ])
+    return {"inline_keyboard": buttons}
 
 
 def _handle_callback_query(body: dict) -> dict:
@@ -41,34 +54,49 @@ def _handle_callback_query(body: dict) -> dict:
         json={"callback_query_id": callback_id}
     )
 
-    if data == "save_phrases":
+    if data.startswith("toggle_phrase_"):
+        idx = int(data.split("_")[-1])
         pending = session_client.get_pending_phrases(user_id)
-        if pending:
+        if pending and 0 <= idx < len(pending):
+            pending[idx]["selected"] = not pending[idx].get("selected", False)
+            session_client.set_pending_phrases(user_id, pending)
+            requests.post(
+                f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/editMessageReplyMarkup",
+                json={
+                    "chat_id": chat_id,
+                    "message_id": message_id,
+                    "reply_markup": _phrase_keyboard_dict(pending),
+                }
+            )
+
+    elif data == "confirm_phrases":
+        pending = session_client.get_pending_phrases(user_id)
+        to_save = [p for p in pending if p.get("selected", False)] if pending else []
+        if to_save:
             try:
-                do_save_phrases(pending, user_id)
-                session_client.clear_pending_phrases(user_id)
-                phrase_lines = "\n".join(
-                    f"• {p.get('text', '')} — {p.get('japanese', '')}"
-                    for p in pending
-                )
-                suffix = f"\n\n✅ 保存しました！\n{phrase_lines}"
+                do_save_phrases(to_save, user_id)
+                saved_lines = "\n".join(f"• {p['text']} — {p['japanese']}" for p in to_save)
+                suffix = f"\n\n✅ Saved {len(to_save)} phrase(s)!\n{saved_lines}"
             except Exception as e:
                 print(f"[callback] do_save_phrases failed: {e}")
-                suffix = "\n\n❌ 保存中にエラーが発生しました。"
+                suffix = "\n\n❌ Failed to save. Please try again."
         else:
-            suffix = "\n\n✅ 保存しました！"
-    else:
+            suffix = "\n\n✅ No phrases selected."
         session_client.clear_pending_phrases(user_id)
-        suffix = "\n\n✗ スキップしました。"
+        prefix = original_text.split("\n\n📚")[0]
+        requests.post(
+            f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/editMessageText",
+            json={"chat_id": chat_id, "message_id": message_id, "text": prefix + suffix}
+        )
 
-    requests.post(
-        f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/editMessageText",
-        json={
-            "chat_id": chat_id,
-            "message_id": message_id,
-            "text": original_text + suffix,
-        }
-    )
+    elif data == "cancel_phrases":
+        session_client.clear_pending_phrases(user_id)
+        prefix = original_text.split("\n\n📚")[0]
+        requests.post(
+            f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/editMessageText",
+            json={"chat_id": chat_id, "message_id": message_id, "text": prefix + "\n\n✗ Skipped."}
+        )
+
     return {"statusCode": 200}
 
 
@@ -96,8 +124,16 @@ def lambda_handler(event, context):
             print(f"[/review] start_quiz failed: {e}")
             requests.post(
                 f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage",
-                json={"chat_id": chat_id, "text": f"エラーが発生しました: {e}"},
+                json={"chat_id": chat_id, "text": f"Something went wrong: {e}"},
             )
+        return {"statusCode": 200}
+
+    if text == "/reset":
+        session_client.reset_session(chat_id)
+        requests.post(
+            f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage",
+            json={"chat_id": chat_id, "text": "🔄 Conversation reset. Let's start fresh!"},
+        )
         return {"statusCode": 200}
 
     quiz_state = session_client.get_quiz_state(chat_id)
@@ -115,7 +151,7 @@ def lambda_handler(event, context):
                 print(f"[quiz] handle_quiz_answer failed: {e}")
                 requests.post(
                     f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage",
-                    json={"chat_id": chat_id, "text": f"クイズ処理中にエラーが発生しました: {e}"},
+                    json={"chat_id": chat_id, "text": f"Something went wrong during the quiz: {e}"},
                 )
             return {"statusCode": 200}
 

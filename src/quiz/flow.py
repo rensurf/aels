@@ -143,7 +143,7 @@ def _count_same_japanese(phrases_map: dict, pending: list, japanese: str) -> int
 
 def _send_question(chat_id: str, phrase: dict, same_count: int = 1) -> None:
     japanese = phrase["japanese"][0]
-    hint = f"（あと{same_count}フレーズ）" if same_count > 1 else ""
+    hint = f" ({same_count} more to go)" if same_count > 1 else ""
     _send(chat_id, f"🇯🇵 {japanese}{hint}\n\nHow do you say this in English?")
 
 

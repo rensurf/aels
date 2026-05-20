@@ -10,12 +10,21 @@ from src.session.client import SessionClient
 
 session_client = SessionClient(table_name=DYNAMODB_SESSION_TABLE)
 
-_SAVE_KEYBOARD = InlineKeyboardMarkup([
-    [
-        InlineKeyboardButton("✅ 保存する", callback_data="save_phrases"),
-        InlineKeyboardButton("✗ スキップ", callback_data="discard_phrases"),
-    ]
-])
+_TURN_ALERT_THRESHOLD = 15
+_TURN_ALERT_INTERVAL = 5
+
+
+def _build_phrase_keyboard(phrases: list[dict]) -> InlineKeyboardMarkup:
+    buttons = []
+    for i, p in enumerate(phrases):
+        mark = "☑" if p.get("selected", False) else "☐"
+        label = f"{mark} {p['text']} — {p['japanese']}"
+        buttons.append([InlineKeyboardButton(label, callback_data=f"toggle_phrase_{i}")])
+    buttons.append([
+        InlineKeyboardButton("💾 Save selected", callback_data="confirm_phrases"),
+        InlineKeyboardButton("✗ Cancel", callback_data="cancel_phrases"),
+    ])
+    return InlineKeyboardMarkup(buttons)
 
 
 def worker_handler(event, context):
@@ -56,20 +65,17 @@ async def _process(payload: dict) -> None:
         messages = session_client.load_session(chat_id)
         response, session = await handle_message(incoming, messages)
         session_client.save_session(chat_id, session.to_dict())
+        turn_count = session_client.increment_turn_count(chat_id)
 
         pending = session_client.get_pending_phrases(user_id)
         print(f"[worker] pending_phrases for user_id={user_id}: {pending}")
         if pending:
-            phrase_lines = "\n".join(
-                f"• {p.get('text', '')} — {p.get('japanese', '')}"
-                for p in pending
-            )
-            full_text = f"{response.text}\n\n📚 以下のフレーズを保存しますか？\n{phrase_lines}"
+            full_text = f"{response.text}\n\n📚 Choose phrases to save:"
             await bot.edit_message_text(
                 chat_id=chat_id,
                 message_id=thinking_message_id,
                 text=full_text,
-                reply_markup=_SAVE_KEYBOARD,
+                reply_markup=_build_phrase_keyboard(pending),
             )
         else:
             await bot.edit_message_text(
@@ -78,10 +84,16 @@ async def _process(payload: dict) -> None:
                 text=response.text,
             )
 
+        if turn_count >= _TURN_ALERT_THRESHOLD and (turn_count - _TURN_ALERT_THRESHOLD) % _TURN_ALERT_INTERVAL == 0:
+            await bot.send_message(
+                chat_id=chat_id,
+                text="⚠️ Your conversation is getting long. If things slow down, use /reset to start fresh.",
+            )
+
     except Exception as e:
         print(f"[worker] Error: {e}")
         await bot.edit_message_text(
             chat_id=chat_id,
             message_id=thinking_message_id,
-            text="❌ エラーが発生しました。もう一度試してください。",
+            text="❌ Something went wrong. Please try again.",
         )
