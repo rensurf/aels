@@ -130,6 +130,25 @@ def get_recent_phrases(user_id: str, limit: int) -> list[dict]:
     return items[:limit]
 
 
+def get_progress(user_id: str) -> dict:
+    from datetime import date
+    today = date.today().isoformat()
+
+    phrase_rows = client.execute(queries.get_all_phrases(user_id))
+    total_phrases = len(phrase_rows)
+
+    sm2_rows = client.execute(queries.get_all_sm2_data(user_id))
+    due_today = sum(1 for r in sm2_rows if r.get("due_date", "9999-99-99") <= today)
+
+    weakness = get_weakness_summary(user_id)
+
+    return {
+        "total_phrases": total_phrases,
+        "due_today": due_today,
+        "weakness": weakness,
+    }
+
+
 def get_weakness_summary(user_id: str) -> dict:
     """
     Summarize the user's weakest patterns based on SM-2 ease_factor.

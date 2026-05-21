@@ -6,10 +6,15 @@ from src.config import DYNAMODB_SESSION_TABLE, TELEGRAM_BOT_TOKEN, SQS_WORKER_QU
 from src.session.client import SessionClient
 from src.quiz.flow import start_quiz, handle_quiz_answer
 from src.quiz.intent import detect_intent
-from src.tools.memory_tool import do_save_phrases
+from src.tools.memory_tool import do_save_phrases, get_recent_phrases, search_phrases, get_progress
 
 session_client = SessionClient(table_name=DYNAMODB_SESSION_TABLE)
 sqs = boto3.client("sqs", region_name="ap-southeast-2")
+
+
+def _v(item: dict, key: str) -> str:
+    v = item.get(key, "")
+    return v[0] if isinstance(v, list) and v else str(v)
 
 
 class _DecimalEncoder(json.JSONEncoder):
@@ -133,6 +138,82 @@ def lambda_handler(event, context):
         requests.post(
             f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage",
             json={"chat_id": chat_id, "text": "🔄 Conversation reset. Let's start fresh!"},
+        )
+        return {"statusCode": 200}
+
+    if text == "/stop":
+        quiz_state = session_client.get_quiz_state(chat_id)
+        if quiz_state:
+            session_client.clear_quiz_state(chat_id)
+            msg = "⏹ Quiz stopped. Feel free to keep chatting!"
+        else:
+            msg = "No quiz in progress."
+        requests.post(
+            f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage",
+            json={"chat_id": chat_id, "text": msg},
+        )
+        return {"statusCode": 200}
+
+    if text.startswith("/list"):
+        keyword = text[5:].strip()
+        try:
+            if keyword:
+                phrases = search_phrases(keyword, user_id)
+                header = f'📚 Search results for "{keyword}"'
+            else:
+                phrases = get_recent_phrases(user_id, limit=10)
+                header = "📚 Recent phrases (10)"
+            if phrases:
+                lines = [header, ""]
+                for p in phrases:
+                    line = f"• {_v(p, 'text')} — {_v(p, 'japanese')}"
+                    ctx = _v(p, "context")
+                    if ctx:
+                        line += f" ({ctx})"
+                    lines.append(line)
+                msg = "\n".join(lines)
+            elif keyword:
+                msg = f'No phrases found for "{keyword}".'
+            else:
+                msg = "No phrases saved yet. Start chatting to learn!"
+        except Exception as e:
+            print(f"[/list] error: {e}")
+            msg = "Something went wrong."
+        requests.post(
+            f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage",
+            json={"chat_id": chat_id, "text": msg},
+        )
+        return {"statusCode": 200}
+
+    if text == "/progress":
+        try:
+            data = get_progress(user_id)
+            total = data["total_phrases"]
+            due = data["due_today"]
+            weakness = data["weakness"]
+
+            lines = ["📊 Your progress", ""]
+            lines.append(f"Total phrases saved: {total}")
+            due_line = f"Due for review today: {due}"
+            if due == 0:
+                due_line += " 🎉 All caught up!"
+            lines.append(due_line)
+
+            patterns = weakness.get("patterns", [])
+            if patterns:
+                lines += ["", f"Weakest pattern: {patterns[0]['pattern']}"]
+                for ex in patterns[0].get("examples", []):
+                    lines.append(f"• {ex['text']} — {ex['japanese']}")
+            else:
+                lines += ["", "No weak patterns yet. Keep it up!"]
+
+            msg = "\n".join(lines)
+        except Exception as e:
+            print(f"[/progress] error: {e}")
+            msg = "Something went wrong."
+        requests.post(
+            f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage",
+            json={"chat_id": chat_id, "text": msg},
         )
         return {"statusCode": 200}
 
