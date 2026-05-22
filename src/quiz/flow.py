@@ -97,30 +97,47 @@ def handle_quiz_answer(chat_id: str, user_answer: str) -> None:
         due_date=result.due_date,
     ))
 
+    # Sync updated SM-2 values into quiz_state so re-attempts use fresh data
+    quiz_state["phrases"][target_id] = {
+        **quiz_state["phrases"][target_id],
+        "ease_factor": [result.ease_factor],
+        "interval": [result.interval],
+        "repetitions": [result.repetitions],
+        "due_date": [result.due_date],
+    }
+
     target_text = target_phrase["text"][0]
     if eval_result.quality == 5:
         _send(chat_id, f"✅ Correct! Next review in {result.interval} day(s).")
     elif eval_result.quality == 3:
-        msg = f"🟡 Close! Expected: *{target_text}*"
-        if eval_result.note:
-            msg += f"\n{eval_result.note}"
-        msg += f"\nNext review in {result.interval} day(s)."
-        _send(chat_id, msg)
+        lines = [f"🟡 Close! The answer was: *{target_text}*", ""]
+        lines.append(f"Your answer: \"{user_answer}\"")
+        if eval_result.explanation:
+            lines.append(eval_result.explanation)
+        lines.append(f"Next review in {result.interval} day(s).")
+        _send(chat_id, "\n".join(lines))
     else:
-        msg = f"❌ The answer was: *{target_text}*."
-        if eval_result.note:
-            msg += f"\n{eval_result.note}"
-        msg += "\nYou'll see this again soon."
-        _send(chat_id, msg)
+        lines = [f"❌ The answer was: *{target_text}*", ""]
+        lines.append(f"Your answer: \"{user_answer}\"")
+        if eval_result.error_type:
+            lines.append(f"Problem: {eval_result.error_type.replace('_', ' ').title()}")
+        if eval_result.explanation:
+            lines.append(eval_result.explanation)
+        lines.append("You'll see this again shortly.")
+        _send(chat_id, "\n".join(lines))
 
     quiz_state["last_feedback"] = {
         "japanese": japanese,
         "user_answer": user_answer,
         "expected": target_text,
-        "note": eval_result.note,
+        "note": eval_result.explanation,
     }
 
     pending.remove(target_id)
+
+    # Re-queue wrong answers for another attempt in this session
+    if eval_result.quality == 1:
+        pending.append(target_id)
 
     if not pending:
         _finish_quiz(chat_id)
