@@ -47,15 +47,25 @@ def start_quiz(chat_id: str, user_id: str) -> None:
 
     phrase_ids = [p["phrase_id"][0] for p in due_phrases]
     phrases_map = {p["phrase_id"][0]: p for p in due_phrases}
+
+    due_ids = set(phrase_ids)
+    not_due_hints: dict[str, list[str]] = {}
+    for pid, phrase in phrase_by_id.items():
+        if pid not in due_ids:
+            jp = phrase["japanese"][0]
+            if any(phrases_map[did]["japanese"][0] == jp for did in due_ids):
+                not_due_hints.setdefault(jp, []).append(phrase["text"][0])
+
     _session.set_quiz_state(chat_id, {
         "pending_phrases": phrase_ids,
         "current_phrase_id": phrase_ids[0],
         "user_id": user_id,
         "phrases": phrases_map,
+        "not_due_hints": not_due_hints,
     })
 
-    same_count = _count_same_japanese(phrases_map, phrase_ids, due_phrases[0]["japanese"][0])
-    _send_question(chat_id, due_phrases[0], same_count)
+    hints = _build_hints(phrases_map, phrase_ids, due_phrases[0]["japanese"][0], not_due_hints)
+    _send_question(chat_id, due_phrases[0], hints)
 
 
 def handle_quiz_answer(chat_id: str, user_answer: str) -> None:
@@ -150,18 +160,28 @@ def handle_quiz_answer(chat_id: str, user_answer: str) -> None:
 
     next_phrase = quiz_state["phrases"][next_id]
     next_japanese = next_phrase["japanese"][0]
-    same_count = _count_same_japanese(quiz_state["phrases"], pending, next_japanese)
-    _send_question(chat_id, next_phrase, same_count)
+    hints = _build_hints(quiz_state["phrases"], pending, next_japanese, quiz_state.get("not_due_hints", {}))
+    _send_question(chat_id, next_phrase, hints)
 
 
-def _count_same_japanese(phrases_map: dict, pending: list, japanese: str) -> int:
-    return sum(1 for pid in pending if phrases_map[pid]["japanese"][0] == japanese)
+def _build_hints(phrases_map: dict, pending: list, japanese: str, not_due_hints: dict) -> list[str]:
+    completed = [
+        phrases_map[pid]["text"][0]
+        for pid in phrases_map
+        if pid not in pending and phrases_map[pid]["japanese"][0] == japanese
+    ]
+    static = not_due_hints.get(japanese, [])
+    return completed + static
 
 
-def _send_question(chat_id: str, phrase: dict, same_count: int = 1) -> None:
+def _send_question(chat_id: str, phrase: dict, hints: list[str] = []) -> None:
     japanese = phrase["japanese"][0]
-    hint = f" ({same_count} more to go)" if same_count > 1 else ""
-    _send(chat_id, f"🇯🇵 {japanese}{hint}\n\nHow do you say this in English?")
+    lines = [f"🇯🇵 {japanese}"]
+    if hints:
+        not_str = ", ".join(f'"{t}"' for t in hints)
+        lines.append(f"\n_(Not: {not_str})_")
+    lines.append("\nHow do you say this in English?")
+    _send(chat_id, "\n".join(lines))
 
 
 def _finish_quiz(chat_id: str) -> None:
