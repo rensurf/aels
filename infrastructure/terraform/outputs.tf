@@ -5,3 +5,7 @@ output "webhook_url" {
 output "github_actions_role_arn" {
   value = module.aws.github_actions_role_arn
 }
+
+output "deploy_bucket" {
+  value = module.aws.deploy_bucket
+}

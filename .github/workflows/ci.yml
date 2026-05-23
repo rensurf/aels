@@ -57,19 +57,18 @@ jobs:
           role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
           aws-region: ap-southeast-2
 
+      - name: Upload package to S3
+        run: |
+          aws s3 cp deploy.zip s3://${{ secrets.DEPLOY_BUCKET }}/deploy-${{ github.sha }}.zip
+
       - name: Deploy code to Lambda
         run: |
-          aws lambda update-function-code \
-            --function-name aels-teacher \
-            --zip-file fileb://deploy.zip
-
-          aws lambda update-function-code \
-            --function-name aels-worker \
-            --zip-file fileb://deploy.zip
-
-          aws lambda update-function-code \
-            --function-name aels-quiz-scheduler \
-            --zip-file fileb://deploy.zip
+          for fn in aels-teacher aels-worker aels-quiz-scheduler; do
+            aws lambda update-function-code \
+              --function-name "$fn" \
+              --s3-bucket ${{ secrets.DEPLOY_BUCKET }} \
+              --s3-key deploy-${{ github.sha }}.zip
+          done
 
       - name: Update Lambda environment variables
         run: |

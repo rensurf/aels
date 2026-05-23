@@ -31,17 +31,25 @@ resource "aws_iam_role_policy" "github_actions_deploy" {
 
   policy = jsonencode({
     Version = "2012-10-17"
-    Statement = [{
-      Effect = "Allow"
-      Action = [
-        "lambda:UpdateFunctionCode",
-        "lambda:GetFunction",
-      ]
-      Resource = [
-        "arn:aws:lambda:ap-southeast-2:*:function:aels-teacher",
-        "arn:aws:lambda:ap-southeast-2:*:function:aels-worker",
-        "arn:aws:lambda:ap-southeast-2:*:function:aels-quiz-scheduler",
-      ]
-    }]
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "lambda:UpdateFunctionCode",
+          "lambda:GetFunction",
+          "lambda:UpdateFunctionConfiguration",
+        ]
+        Resource = [
+          "arn:aws:lambda:ap-southeast-2:*:function:aels-teacher",
+          "arn:aws:lambda:ap-southeast-2:*:function:aels-worker",
+          "arn:aws:lambda:ap-southeast-2:*:function:aels-quiz-scheduler",
+        ]
+      },
+      {
+        Effect   = "Allow"
+        Action   = ["s3:PutObject", "s3:GetObject"]
+        Resource = "${aws_s3_bucket.deploy.arn}/*"
+      }
+    ]
   })
 }

@@ -9,3 +9,7 @@ output "sqs_worker_queue_url" {
 output "github_actions_role_arn" {
   value = aws_iam_role.github_actions_deploy.arn
 }
+
+output "deploy_bucket" {
+  value = aws_s3_bucket.deploy.bucket
+}
