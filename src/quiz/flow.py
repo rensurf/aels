@@ -164,6 +164,56 @@ def handle_quiz_answer(chat_id: str, user_answer: str) -> None:
     _send_question(chat_id, next_phrase, hints)
 
 
+def handle_quiz_give_up(chat_id: str) -> None:
+    quiz_state = _session.get_quiz_state(chat_id)
+    if not quiz_state:
+        return
+
+    user_id = quiz_state["user_id"]
+    current_id = quiz_state["current_phrase_id"]
+    current_phrase = quiz_state["phrases"][current_id]
+    target_text = current_phrase["text"][0]
+    pending = list(quiz_state["pending_phrases"])
+
+    _send(chat_id, f"❌ The answer was: *{target_text}*\nYou'll see this again shortly.")
+
+    result = calculate_next_review(
+        ease_factor=float(current_phrase.get("ease_factor", [2.5])[0]),
+        interval=int(current_phrase.get("interval", [0])[0]),
+        repetitions=int(current_phrase.get("repetitions", [0])[0]),
+        quality=1,
+    )
+    _graph.execute(queries.update_sm2(
+        user_id=user_id,
+        phrase_id=current_id,
+        ease_factor=result.ease_factor,
+        interval=result.interval,
+        repetitions=result.repetitions,
+        due_date=result.due_date,
+    ))
+
+    quiz_state["phrases"][current_id] = {
+        **quiz_state["phrases"][current_id],
+        "ease_factor": [result.ease_factor],
+        "interval": [result.interval],
+        "repetitions": [result.repetitions],
+        "due_date": [result.due_date],
+    }
+
+    pending.remove(current_id)
+    pending.append(current_id)
+
+    next_id = pending[0]
+    quiz_state["pending_phrases"] = pending
+    quiz_state["current_phrase_id"] = next_id
+    _session.set_quiz_state(chat_id, quiz_state)
+
+    next_phrase = quiz_state["phrases"][next_id]
+    next_japanese = next_phrase["japanese"][0]
+    hints = _build_hints(quiz_state["phrases"], pending, next_japanese, quiz_state.get("not_due_hints", {}))
+    _send_question(chat_id, next_phrase, hints)
+
+
 def _build_hints(phrases_map: dict, pending: list, japanese: str, not_due_hints: dict) -> list[str]:
     completed = [
         phrases_map[pid]["text"][0]

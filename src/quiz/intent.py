@@ -27,14 +27,15 @@ Last feedback: {last_feedback.get('note', '')} (Expected: "{last_feedback.get('e
 Current quiz question: 「{japanese}」{feedback_context}
 User's message: "{user_message}"
 
-Is this message a quiz answer (the user is attempting to answer the question) or a follow-up question (the user is asking about the quiz, grammar, or a previous feedback)?
+Classify the user's message into one of three intents:
 
 - "answer": the user is attempting an English translation
+- "give_up": the user doesn't know the answer and wants to skip (e.g. "わからない", "skip", "pass", "don't know", "no idea", "教えて", "次へ")
 - "question": the user is asking something (why wrong, grammar explanation, clarification, etc.)
 
 When in doubt, choose "question" to avoid advancing the quiz incorrectly.
 
-Respond in JSON: {{"intent": "answer" | "question"}}"""
+Respond in JSON: {{"intent": "answer" | "give_up" | "question"}}"""
 
     response = client.chat.completions.create(
         model="gpt-4o",
@@ -47,4 +48,4 @@ Respond in JSON: {{"intent": "answer" | "question"}}"""
     data = json.loads(raw)
     intent = data.get("intent", "question").strip().lower()
 
-    return intent if intent in ("answer", "question") else "question"
+    return intent if intent in ("answer", "give_up", "question") else "question"

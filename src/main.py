@@ -4,7 +4,7 @@ import boto3
 from decimal import Decimal
 from src.config import DYNAMODB_SESSION_TABLE, TELEGRAM_BOT_TOKEN, SQS_WORKER_QUEUE_URL
 from src.session.client import SessionClient
-from src.quiz.flow import start_quiz, handle_quiz_answer
+from src.quiz.flow import start_quiz, handle_quiz_answer, handle_quiz_give_up
 from src.quiz.intent import detect_intent
 from src.tools.memory_tool import do_save_phrases, get_recent_phrases, search_phrases, get_progress
 
@@ -227,6 +227,17 @@ def lambda_handler(event, context):
                 handle_quiz_answer(chat_id, text)
             except Exception as e:
                 print(f"[quiz] handle_quiz_answer failed: {e}")
+                requests.post(
+                    f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage",
+                    json={"chat_id": chat_id, "text": f"Something went wrong during the quiz: {e}"},
+                )
+            return {"statusCode": 200}
+
+        if intent == "give_up":
+            try:
+                handle_quiz_give_up(chat_id)
+            except Exception as e:
+                print(f"[quiz] handle_quiz_give_up failed: {e}")
                 requests.post(
                     f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage",
                     json={"chat_id": chat_id, "text": f"Something went wrong during the quiz: {e}"},
