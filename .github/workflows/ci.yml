@@ -28,3 +28,63 @@ jobs:
 
       - name: Test
         run: uv run pytest tests/unit/ -v
+
+  deploy:
+    needs: ci
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+
+      - name: Build deployment package
+        run: |
+          uv pip install -r requirements.txt --target package/
+          cp -r src/ package/
+          cd package && zip -r ../deploy.zip . -x "*.pyc" -x "__pycache__/*"
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ap-southeast-2
+
+      - name: Deploy code to Lambda
+        run: |
+          aws lambda update-function-code \
+            --function-name aels-teacher \
+            --zip-file fileb://deploy.zip
+
+          aws lambda update-function-code \
+            --function-name aels-worker \
+            --zip-file fileb://deploy.zip
+
+          aws lambda update-function-code \
+            --function-name aels-quiz-scheduler \
+            --zip-file fileb://deploy.zip
+
+      - name: Update Lambda environment variables
+        run: |
+          ENV_VARS="Variables={\
+          TELEGRAM_BOT_TOKEN=${{ secrets.TELEGRAM_BOT_TOKEN }},\
+          OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }},\
+          COSMOS_ENDPOINT=${{ secrets.COSMOS_ENDPOINT }},\
+          COSMOS_KEY=${{ secrets.COSMOS_KEY }},\
+          COSMOS_DATABASE=${{ secrets.COSMOS_DATABASE }},\
+          COSMOS_GRAPH=${{ secrets.COSMOS_GRAPH }},\
+          DYNAMODB_SESSION_TABLE=${{ secrets.DYNAMODB_SESSION_TABLE }},\
+          SQS_WORKER_QUEUE_URL=${{ secrets.SQS_WORKER_QUEUE_URL }}}"
+
+          for fn in aels-teacher aels-worker aels-quiz-scheduler; do
+            aws lambda update-function-configuration \
+              --function-name "$fn" \
+              --environment "$ENV_VARS"
+          done

@@ -4,13 +4,13 @@ resource "aws_lambda_function" "aels" {
   runtime       = "python3.12"
   handler       = "main.lambda_handler"
   filename      = "${path.module}/placeholder.zip"
+  memory_size   = 512
 
   timeout = 10
 
-  environment {
-    variables = {
-      LOG_LEVEL = "INFO"
-    }
+  lifecycle {
+    # env vars and code are managed by the CD pipeline, not Terraform
+    ignore_changes = [environment, filename]
   }
 }
 
@@ -20,14 +20,12 @@ resource "aws_lambda_function" "worker" {
   runtime       = "python3.12"
   handler       = "worker.worker_handler"
   filename      = "${path.module}/placeholder.zip"
+  memory_size   = 512
 
-  timeout     = 120
-  memory_size = 512
+  timeout = 120
 
-  environment {
-    variables = {
-      LOG_LEVEL = "INFO"
-    }
+  lifecycle {
+    ignore_changes = [environment, filename]
   }
 }
 
@@ -41,14 +39,13 @@ resource "aws_lambda_function" "quiz_scheduler" {
   function_name = "aels-quiz-scheduler"
   role          = aws_iam_role.lambda.arn
   runtime       = "python3.12"
-  handler       = "main.quiz_scheduler_handler"  # ← different handler
+  handler       = "main.quiz_scheduler_handler"
   filename      = "${path.module}/placeholder.zip"
+  memory_size   = 512
 
   timeout = 29
 
-  environment {
-    variables = {
-      LOG_LEVEL = "INFO"
-    }
+  lifecycle {
+    ignore_changes = [environment, filename]
   }
 }
