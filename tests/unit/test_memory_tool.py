@@ -14,7 +14,7 @@ with patch("src.tools.memory_tool.client", mock_client):
 
 def test_do_save_phrases_executes_graph_queries():
     mock_client.reset_mock()
-    phrases = [{"text": "Got it", "japanese": "承知しました", "context": "casual", "note": "Common"}]
+    phrases = [{"text": "Got it", "japanese": "承知しました", "note": "Common"}]
 
     with patch("src.tools.memory_tool._ensure_user_exists"):
         with patch("src.tools.memory_tool._classify_pattern", return_value="formal_informal"):
@@ -41,7 +41,7 @@ def test_classify_pattern_returns_valid_category():
 
     with patch("src.tools.memory_tool.OpenAI") as MockOpenAI:
         MockOpenAI.return_value.chat.completions.create.return_value = mock_response
-        result = _classify_pattern(text="work on it", japanese="それに取り組む", context="casual", note="")
+        result = _classify_pattern(text="work on it", japanese="それに取り組む", note="")
 
     assert result == "preposition"
 
@@ -52,14 +52,14 @@ def test_classify_pattern_falls_back_to_other_on_unknown_response():
 
     with patch("src.tools.memory_tool.OpenAI") as MockOpenAI:
         MockOpenAI.return_value.chat.completions.create.return_value = mock_response
-        result = _classify_pattern(text="test", japanese="テスト", context="", note="")
+        result = _classify_pattern(text="test", japanese="テスト", note="")
 
     assert result == "other"
 
 
 def test_classify_pattern_falls_back_to_other_on_exception():
     with patch("src.tools.memory_tool.OpenAI", side_effect=Exception("API error")):
-        result = _classify_pattern(text="test", japanese="テスト", context="", note="")
+        result = _classify_pattern(text="test", japanese="テスト", note="")
 
     assert result == "other"
 

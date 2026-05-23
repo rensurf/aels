@@ -167,9 +167,6 @@ def lambda_handler(event, context):
                 lines = [header, ""]
                 for p in phrases:
                     line = f"• {_v(p, 'text')} — {_v(p, 'japanese')}"
-                    ctx = _v(p, "context")
-                    if ctx:
-                        line += f" ({ctx})"
                     lines.append(line)
                 msg = "\n".join(lines)
             elif keyword:

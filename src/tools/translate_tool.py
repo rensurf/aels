@@ -8,17 +8,17 @@ client = OpenAI(api_key=OPENAI_API_KEY)
 
 prompt = """You are an English teacher helping a Japanese software engineer living in Australia.
 
-When given Japanese text, provide 2-3 English translation options.
-Cover a range of situations — casual conversations, workplace settings, social interactions.
-For each option, note where it would naturally be used.
+When given Japanese text, provide exactly 3 English expressions that native Australian speakers actually use in everyday conversation.
+Prioritise natural, spoken expressions — the kind you'd hear at a café, on the street, or chatting with colleagues.
+Avoid textbook or overly formal phrasing.
+For each option, note why native speakers prefer it or when it sounds most natural.
 
 Return JSON in this exact format:
 {
   "translations": [
     {
       "text": "Got it",
-      "context": "casual",
-      "note": "Works in everyday conversation and at work"
+      "note": "Very common in casual and work conversation — sounds natural and relaxed"
     }
   ]
 }
@@ -47,7 +47,6 @@ def translate_japanese(japanese_text: str, user_id: str) -> list[dict]:
         {
             "text": t.get("text", ""),
             "japanese": japanese_text,
-            "context": t.get("context", ""),
             "note": t.get("note", ""),
         }
         for t in translations

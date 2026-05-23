@@ -17,7 +17,7 @@ def create_user(user_id: str, name: str, goal: str) -> str:
 def get_all_users() -> str:
     return "g.V().hasLabel('user').valueMap()"
 
-def create_phrase(phrase_id: str, text: str, japanese: str, context: str, note: str, user_id: str) -> str:
+def create_phrase(phrase_id: str, text: str, japanese: str, note: str, user_id: str) -> str:
     now = datetime.now(timezone.utc).isoformat()
     query = f"""
     g.addV('phrase')
@@ -25,7 +25,6 @@ def create_phrase(phrase_id: str, text: str, japanese: str, context: str, note: 
      .property('user_id', '{_esc(user_id)}')
      .property('text', '{_esc(text)}')
      .property('japanese', '{_esc(japanese)}')
-     .property('context', '{_esc(context)}')
      .property('note', '{_esc(note)}')
      .property('created_at', '{now}')
     """

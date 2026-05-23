@@ -27,14 +27,13 @@ def _ensure_user_exists(user_id: str) -> None:
         client.execute(queries.create_user(user_id=user_id, name=user_id, goal="Work in Australia"))
 
 
-def _classify_pattern(text: str, japanese: str, context: str, note: str) -> str:
+def _classify_pattern(text: str, japanese: str, note: str) -> str:
     try:
         oai = OpenAI()
         prompt = f"""Classify this English phrase into exactly one category.
 
 English: {text}
 Japanese: {japanese}
-Context: {context}
 Note: {note}
 
 Categories:
@@ -77,20 +76,18 @@ def do_save_phrases(phrases: list[dict], user_id: str) -> str:
         phrase_id = str(uuid.uuid4())
         text = phrase.get("text", "")
         japanese = phrase.get("japanese", "")
-        context = phrase.get("context", "")
         note = phrase.get("note", "")
 
         client.execute(queries.create_phrase(
             phrase_id=phrase_id,
             text=text,
             japanese=japanese,
-            context=context,
             note=note,
             user_id=user_id
         ))
         client.execute(queries.link_user_to_phrase(user_id=user_id, phrase_id=phrase_id))
 
-        pattern_name = _classify_pattern(text=text, japanese=japanese, context=context, note=note)
+        pattern_name = _classify_pattern(text=text, japanese=japanese, note=note)
         pattern_id = _get_or_create_pattern(name=pattern_name, user_id=user_id)
         client.execute(queries.link_phrase_to_pattern(phrase_id=phrase_id, pattern_id=pattern_id))
 
@@ -105,7 +102,6 @@ def save_phrases(phrases: list[dict], user_id: str) -> str:
         phrases: List of phrase objects, each with:
             - text: English phrase (str)
             - japanese: Japanese meaning (str)
-            - context: Usage context e.g. "formal", "casual" (str)
             - note: Additional notes (str)
         user_id: The user's Telegram user ID
     """
