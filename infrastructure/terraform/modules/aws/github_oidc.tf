@@ -18,7 +18,7 @@ resource "aws_iam_role" "github_actions_deploy" {
           "token.actions.githubusercontent.com:aud" = "sts.amazonaws.com"
         }
         StringLike = {
-          "token.actions.githubusercontent.com:sub" = "repo:ren-surf/aels:ref:refs/heads/main"
+          "token.actions.githubusercontent.com:sub" = "repo:rensurf/aels:ref:refs/heads/main"
         }
       }
     }]
