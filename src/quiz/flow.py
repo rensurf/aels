@@ -201,7 +201,10 @@ def handle_quiz_give_up(chat_id: str) -> None:
     }
 
     pending.remove(current_id)
-    pending.append(current_id)
+
+    if not pending:
+        _finish_quiz(chat_id)
+        return
 
     next_id = pending[0]
     quiz_state["pending_phrases"] = pending
