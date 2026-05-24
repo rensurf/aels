@@ -65,7 +65,7 @@ def start_quiz(chat_id: str, user_id: str) -> None:
     })
 
     hints = _build_hints(phrases_map, phrase_ids, due_phrases[0]["japanese"][0], not_due_hints)
-    _send_question(chat_id, due_phrases[0], hints)
+    _send_question(chat_id, due_phrases[0], hints, remaining=len(phrase_ids))
 
 
 def handle_quiz_answer(chat_id: str, user_answer: str) -> None:
@@ -161,7 +161,7 @@ def handle_quiz_answer(chat_id: str, user_answer: str) -> None:
     next_phrase = quiz_state["phrases"][next_id]
     next_japanese = next_phrase["japanese"][0]
     hints = _build_hints(quiz_state["phrases"], pending, next_japanese, quiz_state.get("not_due_hints", {}))
-    _send_question(chat_id, next_phrase, hints)
+    _send_question(chat_id, next_phrase, hints, remaining=len(pending))
 
 
 def handle_quiz_give_up(chat_id: str) -> None:
@@ -214,7 +214,7 @@ def handle_quiz_give_up(chat_id: str) -> None:
     next_phrase = quiz_state["phrases"][next_id]
     next_japanese = next_phrase["japanese"][0]
     hints = _build_hints(quiz_state["phrases"], pending, next_japanese, quiz_state.get("not_due_hints", {}))
-    _send_question(chat_id, next_phrase, hints)
+    _send_question(chat_id, next_phrase, hints, remaining=len(pending))
 
 
 def _build_hints(phrases_map: dict, pending: list, japanese: str, not_due_hints: dict) -> list[str]:
@@ -227,9 +227,10 @@ def _build_hints(phrases_map: dict, pending: list, japanese: str, not_due_hints:
     return completed + static
 
 
-def _send_question(chat_id: str, phrase: dict, hints: list[str] = []) -> None:
+def _send_question(chat_id: str, phrase: dict, hints: list[str] = [], remaining: int = 0) -> None:
     japanese = phrase["japanese"][0]
-    lines = [f"🇯🇵 {japanese}"]
+    remaining_str = f" _({remaining} remaining)_" if remaining > 0 else ""
+    lines = [f"🇯🇵 {japanese}{remaining_str}"]
     if hints:
         not_str = ", ".join(f'"{t}"' for t in hints)
         lines.append(f"\n_(Not: {not_str})_")
