@@ -118,7 +118,10 @@ def handle_quiz_answer(chat_id: str, user_answer: str) -> None:
 
     target_text = target_phrase["text"][0]
     if eval_result.quality == 5:
-        _send(chat_id, f"✅ Correct! Next review in {result.interval} day(s).")
+        if user_answer.strip().lower() != target_text.strip().lower():
+            _send(chat_id, f"✅ Correct! The phrase was: *{target_text}*\nNext review in {result.interval} day(s).")
+        else:
+            _send(chat_id, f"✅ Correct! Next review in {result.interval} day(s).")
     elif eval_result.quality == 3:
         lines = [f"🟡 Close! The answer was: *{target_text}*", ""]
         lines.append(f"Your answer: \"{user_answer}\"")
