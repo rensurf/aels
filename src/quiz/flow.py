@@ -248,7 +248,9 @@ def _finish_quiz(chat_id: str) -> None:
 
 
 def _send(chat_id: str, text: str) -> None:
-    requests.post(
+    response = requests.post(
         f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage",
         json={"chat_id": chat_id, "text": text, "parse_mode": "Markdown"},
+        timeout=10,
     )
+    response.raise_for_status()

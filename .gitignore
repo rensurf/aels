@@ -4,13 +4,24 @@
 __pycache__/
 *.pyc
 CLAUDE.md
+
+# Claude Code: auto-downloaded skill bundles (like node_modules)
+.agents/
+.claude/commands/
+.claude/skills/
+
+# Internal docs (local-only design notes)
 docs/jp/internal/
 docs/en/internal/
+
+# Terraform
 **/.terraform/
 **/terraform.tfstate
 **/terraform.tfstate.backup
 **/tfplan
 **/placeholder.zip
+
+# Build artifacts
 deployment.zip
 dist/
 dist2/
