@@ -230,7 +230,8 @@ def _build_hints(phrases_map: dict, pending: list, japanese: str, not_due_hints:
     return completed + static
 
 
-def _send_question(chat_id: str, phrase: dict, hints: list[str] = [], remaining: int = 0) -> None:
+def _send_question(chat_id: str, phrase: dict, hints: list[str] | None = None, remaining: int = 0) -> None:
+    hints = hints or []
     japanese = phrase["japanese"][0]
     remaining_str = f" _({remaining} remaining)_" if remaining > 0 else ""
     lines = [f"🇯🇵 {japanese}{remaining_str}"]
