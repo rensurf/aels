@@ -4,7 +4,8 @@
 __pycache__/
 *.pyc
 CLAUDE.md
-docs/how-to-own-the-code.md
+docs/jp/internal/
+docs/en/internal/
 **/.terraform/
 **/terraform.tfstate
 **/terraform.tfstate.backup
