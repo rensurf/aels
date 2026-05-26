@@ -18,6 +18,10 @@ async def handle_message(incoming: IncomingMessage, messages: list[dict]) -> tup
     else:
         session = agent.create_session()
 
+    from src.session.client import SessionClient
+    from src.config import DYNAMODB_SESSION_TABLE
+    SessionClient(table_name=DYNAMODB_SESSION_TABLE).clear_pending_phrases(incoming.user_id)
+
     text_with_context = f"[user_id={incoming.user_id}] {incoming.text}"
     result = await agent.run(text_with_context, session=session)
 
