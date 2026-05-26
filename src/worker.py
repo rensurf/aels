@@ -67,8 +67,13 @@ async def _process(payload: dict) -> None:
         session_client.save_session(chat_id, session.to_dict())
         turn_count = session_client.increment_turn_count(chat_id)
 
-        pending = session_client.get_pending_phrases(user_id)
-        print(f"[worker] pending_phrases for user_id={user_id}: {pending}")
+        raw_pending = session_client.get_pending_phrases(user_id)
+        seen: set[str] = set()
+        pending = []
+        for p in (raw_pending or []):
+            if p.get("text") not in seen:
+                seen.add(p.get("text", ""))
+                pending.append(p)
         if pending:
             full_text = f"{response.text}\n\n📚 Choose phrases to save:"
             await bot.edit_message_text(
