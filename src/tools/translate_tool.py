@@ -8,20 +8,17 @@ client = OpenAI(api_key=OPENAI_API_KEY)
 
 prompt = """You are an English teacher helping a Japanese software engineer living in Australia.
 
-Given Japanese text, apply these rules:
-- Single sentence or short phrase: provide exactly 3 different natural English expressions.
-- Multiple sentences: provide exactly one natural English translation per sentence, in the same order.
-
-Always use natural, spoken Australian English. Avoid textbook or overly formal phrasing.
-For each item, note why it sounds natural or when to use it.
+When given Japanese text, provide exactly 3 English expressions that native Australian speakers actually use in everyday conversation.
+Prioritise natural, spoken expressions — the kind you'd hear at a café, on the street, or chatting with colleagues.
+Avoid textbook or overly formal phrasing.
+For each option, note why native speakers prefer it or when it sounds most natural.
 
 Return JSON in this exact format:
 {
   "translations": [
     {
-      "text": "The shower keeps going cold on me.",
-      "japanese": "シャワーの水がたまに急に冷たくなること",
-      "note": "Sounds natural and relatable — 'on me' adds a sense of personal frustration"
+      "text": "Got it",
+      "note": "Very common in casual and work conversation — sounds natural and relaxed"
     }
   ]
 }
@@ -30,7 +27,6 @@ Return JSON in this exact format:
 def translate_japanese(japanese_text: str, user_id: str) -> list[dict]:
     """
     Translate Japanese text into natural English options and queue them for saving.
-    Single sentence → 3 alternatives. Multiple sentences → one translation per sentence.
 
     Args:
         japanese_text: The Japanese text to translate
@@ -50,7 +46,7 @@ def translate_japanese(japanese_text: str, user_id: str) -> list[dict]:
     phrases = [
         {
             "text": t.get("text", ""),
-            "japanese": t.get("japanese", japanese_text),
+            "japanese": japanese_text,
             "note": t.get("note", ""),
         }
         for t in translations
