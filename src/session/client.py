@@ -58,6 +58,13 @@ class SessionClient:
     def set_pending_phrases(self, chat_id: str, phrases: list[dict]) -> None:
         self.table.update_item(
             Key={"chat_id": chat_id},
+            UpdateExpression="SET pending_phrases = :pp",
+            ExpressionAttributeValues={":pp": _to_decimal(phrases)},
+        )
+
+    def append_pending_phrases(self, chat_id: str, phrases: list[dict]) -> None:
+        self.table.update_item(
+            Key={"chat_id": chat_id},
             UpdateExpression="SET pending_phrases = list_append(if_not_exists(pending_phrases, :empty), :pp)",
             ExpressionAttributeValues={":empty": [], ":pp": _to_decimal(phrases)},
         )

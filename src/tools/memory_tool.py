@@ -107,7 +107,7 @@ def save_phrases(phrases: list[dict], user_id: str) -> str:
     """
     from src.session.client import SessionClient
     from src.config import DYNAMODB_SESSION_TABLE
-    SessionClient(table_name=DYNAMODB_SESSION_TABLE).set_pending_phrases(user_id, phrases)
+    SessionClient(table_name=DYNAMODB_SESSION_TABLE).append_pending_phrases(user_id, phrases)
     return f"Queued {len(phrases)} phrase(s) for user confirmation."
 
 
