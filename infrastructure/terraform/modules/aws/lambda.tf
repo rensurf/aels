@@ -6,7 +6,7 @@ resource "aws_lambda_function" "aels" {
   filename      = "${path.module}/placeholder.zip"
   memory_size   = 512
 
-  timeout = 10
+  timeout = 29
 
   lifecycle {
     # env vars and code are managed by the CD pipeline, not Terraform
