@@ -16,56 +16,76 @@ class EvalResult:
     explanation: str
 
 
-def evaluate_answer(japanese: str, candidates: list[dict], user_answer: str) -> EvalResult:
+def evaluate_answer(
+    japanese: str,
+    candidates: list[dict],
+    user_answer: str,
+    excluded_phrases: list[str] | None = None,
+) -> EvalResult:
     """
     Args:
         candidates: [{"phrase_id": "...", "text": "Got it"}, ...]
+        excluded_phrases: other valid translations that must NOT be accepted here
     """
     candidate_lines = "\n".join(
         f'[{i + 1}] "{c["text"]}" (id: {c["phrase_id"]})'
         for i, c in enumerate(candidates)
     )
 
+    excluded_section = ""
+    if excluded_phrases:
+        excluded_lines = "\n".join(f'  - "{p}"' for p in excluded_phrases)
+        excluded_section = f"""
+Excluded answers (other saved phrases — do NOT accept these as correct here):
+{excluded_lines}
+"""
+
     prompt = f"""You are grading an English learning exercise for a Japanese engineer preparing for work in Australia.
 
 Japanese phrase: {japanese}
 User's answer: {user_answer}
 
-Valid English translations (find the best match):
+Target phrase (the user must match this specifically):
 {candidate_lines}
+{excluded_section}
+## CRITICAL RULE
+
+The user must reproduce the target phrase — not just provide any valid English translation.
+Even if the user's answer correctly translates the Japanese, mark it "wrong" unless it closely matches the listed target.
+This is a memorisation exercise: we test recall of a specific phrase, not translation ability.
 
 ## Judgment criteria
 
-"correct": The answer is acceptable. Be lenient on these:
-  - Contractions are fine: "I'm" = "I am"
+"correct": The answer closely matches the target phrase. Be lenient only on:
+  - Contractions: "I'm" = "I am"
   - Minor intensifier differences: "really important" ≈ "very important"
   - British/American spelling: "colour" = "color"
-  - Same meaning in different word order
-  - Natural synonyms that preserve exact meaning and register
+  - Trivial word-order variation with identical meaning and register
+  - Obvious typos that do not change pronunciation or meaning (e.g. "inspcetion" → "inspection")
+  - Trailing filler or casual expressions appended after the phrase (e.g. "lol", "haha", "lmao") — ignore completely
+  - Missing or extra punctuation at the end (period, "...", "!", etc.)
+  - Case differences (uppercase vs lowercase)
 
-"close": Grammar, prepositions, articles, and tense are ALL correct — but ONLY the register or formality level differs.
-  Example: answering "Got it" when the phrase is "Certainly" (same meaning, different formality).
-  Do NOT use "close" for any grammar or vocabulary error — those are always "wrong".
+"close": Grammar, prepositions, articles, and tense are ALL correct — but ONLY the register/formality level differs from the target.
+  Example: answering "Got it" when the phrase is "Certainly".
+  Do NOT use "close" for any vocabulary or grammar difference — those are always "wrong".
 
 "wrong": Any of the following applies:
-  - Wrong preposition (e.g. "deal in" instead of "deal with")
-  - Wrong or missing article when it changes meaning (e.g. "give the feedback" vs "give feedback")
-  - Wrong tense
-  - Wrong verb pattern (e.g. "suggest to do" instead of "suggest doing")
-  - Missing required particle in a phrasal verb (e.g. "look" instead of "look into")
-  - Missing required subject or object
+  - The answer is a different phrase, even if it is a valid translation
+  - Wrong preposition, article, tense, or verb pattern
+  - Missing required particle or word
   - Incorrect or unrelated meaning
 
 ## Response format
 
-Set matched_phrase_id to the id of the best-matching candidate, or null if wrong.
+Set matched_phrase_id to the id of the matching candidate, or null if wrong.
 
 For error_type, choose one: "preposition" | "article" | "tense" | "verb_pattern" | "phrasal_verb" | "register" | "missing_word" | "wrong_meaning" | "other" | null (if correct)
 
 For explanation:
 - If correct: empty string
 - If close: one sentence on why it is close and when each form is preferred
-- If wrong: explain specifically what is wrong, state the rule or pattern behind it, and contrast the user's answer with the correct one
+- If wrong: explain specifically what is wrong and contrast with the correct phrase
 
 Respond in JSON:
 {{"matched_phrase_id": "..." | null, "judgment": "correct" | "close" | "wrong", "error_type": "..." | null, "explanation": "..."}}"""

@@ -64,7 +64,7 @@ def start_quiz(chat_id: str, user_id: str) -> None:
         "not_due_hints": not_due_hints,
     })
 
-    hints = _build_hints(phrases_map, phrase_ids, due_phrases[0]["japanese"][0], not_due_hints)
+    hints = _build_hints(phrases_map, phrase_ids, phrase_ids[0], due_phrases[0]["japanese"][0], not_due_hints)
     _send_question(chat_id, due_phrases[0], hints, remaining=len(phrase_ids))
 
 
@@ -79,14 +79,21 @@ def handle_quiz_answer(chat_id: str, user_answer: str) -> None:
     japanese = current_phrase["japanese"][0]
     pending = list(quiz_state["pending_phrases"])
 
-    # Build candidates from all pending phrases with same Japanese
-    candidates = [
-        {"phrase_id": pid, "text": quiz_state["phrases"][pid]["text"][0]}
-        for pid in pending
-        if quiz_state["phrases"][pid]["japanese"][0] == japanese
-    ]
+    # Test only the current phrase; other same-Japanese phrases are excluded
+    candidates = [{"phrase_id": current_id, "text": current_phrase["text"][0]}]
 
-    eval_result = evaluate_answer(japanese=japanese, candidates=candidates, user_answer=user_answer)
+    excluded = [
+        quiz_state["phrases"][pid]["text"][0]
+        for pid in pending
+        if pid != current_id and quiz_state["phrases"][pid]["japanese"][0] == japanese
+    ] + quiz_state.get("not_due_hints", {}).get(japanese, [])
+
+    eval_result = evaluate_answer(
+        japanese=japanese,
+        candidates=candidates,
+        user_answer=user_answer,
+        excluded_phrases=excluded or None,
+    )
 
     # Determine which phrase to record: matched one, or current if wrong
     target_id = eval_result.matched_phrase_id if eval_result.matched_phrase_id else current_id
@@ -163,7 +170,7 @@ def handle_quiz_answer(chat_id: str, user_answer: str) -> None:
 
     next_phrase = quiz_state["phrases"][next_id]
     next_japanese = next_phrase["japanese"][0]
-    hints = _build_hints(quiz_state["phrases"], pending, next_japanese, quiz_state.get("not_due_hints", {}))
+    hints = _build_hints(quiz_state["phrases"], pending, next_id, next_japanese, quiz_state.get("not_due_hints", {}))
     _send_question(chat_id, next_phrase, hints, remaining=len(pending))
 
 
@@ -216,18 +223,23 @@ def handle_quiz_give_up(chat_id: str) -> None:
 
     next_phrase = quiz_state["phrases"][next_id]
     next_japanese = next_phrase["japanese"][0]
-    hints = _build_hints(quiz_state["phrases"], pending, next_japanese, quiz_state.get("not_due_hints", {}))
+    hints = _build_hints(quiz_state["phrases"], pending, next_id, next_japanese, quiz_state.get("not_due_hints", {}))
     _send_question(chat_id, next_phrase, hints, remaining=len(pending))
 
 
-def _build_hints(phrases_map: dict, pending: list, japanese: str, not_due_hints: dict) -> list[str]:
+def _build_hints(phrases_map: dict, pending: list, current_id: str, japanese: str, not_due_hints: dict) -> list[str]:
     completed = [
         phrases_map[pid]["text"][0]
         for pid in phrases_map
         if pid not in pending and phrases_map[pid]["japanese"][0] == japanese
     ]
+    other_pending = [
+        phrases_map[pid]["text"][0]
+        for pid in pending
+        if pid != current_id and phrases_map[pid]["japanese"][0] == japanese
+    ]
     static = not_due_hints.get(japanese, [])
-    return completed + static
+    return completed + other_pending + static
 
 
 def _send_question(chat_id: str, phrase: dict, hints: list[str] | None = None, remaining: int = 0) -> None:
