@@ -19,7 +19,9 @@ jobs:
           python-version: "3.12"
 
       - name: Install dependencies
-        run: uv pip install -r requirements.txt ruff mypy --prerelease=allow --system
+        run: |
+          uv venv
+          uv pip install -r requirements.txt ruff mypy --prerelease=allow
 
       - name: Lint
         run: uv run ruff check src/ tests/
@@ -48,7 +50,7 @@ jobs:
 
       - name: Build deployment package
         run: |
-          uv pip install -r requirements-deploy.txt --target package/ --prerelease=allow --system
+          uv pip install -r requirements-deploy.txt --target package/ --prerelease=allow --python $(uv python find)
           cp -r src/ package/src/
           cp src/main.py src/worker.py src/quiz_scheduler.py package/
           cd package && zip -r ../deploy.zip . -x "*.pyc" -x "__pycache__/*"
