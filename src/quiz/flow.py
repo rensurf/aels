@@ -45,7 +45,7 @@ def start_quiz(chat_id: str, user_id: str) -> None:
         _send(chat_id, "No phrases due for review today. Keep chatting to learn more!")
         return
 
-    phrase_ids = [p["phrase_id"][0] for p in due_phrases]
+    phrase_ids = [p["phrase_id"][0] for p in due_phrases[:30]]
     phrases_map = {p["phrase_id"][0]: p for p in due_phrases}
 
     due_ids = set(phrase_ids)
@@ -251,7 +251,7 @@ def _send_question(chat_id: str, phrase: dict, hints: list[str] | None = None, r
         not_str = ", ".join(f'"{t}"' for t in hints)
         lines.append(f"\n_(Not: {not_str})_")
     lines.append("\nHow do you say this in English?")
-    keyboard = {"inline_keyboard": [[{"text": "わからない", "callback_data": "quiz_give_up"}]]}
+    keyboard = {"inline_keyboard": [[{"text": "I don't know", "callback_data": "quiz_give_up"}]]}
     _send(chat_id, "\n".join(lines), reply_markup=keyboard)
 
 
