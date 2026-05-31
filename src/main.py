@@ -102,6 +102,12 @@ def _handle_callback_query(body: dict) -> dict:
             json={"chat_id": chat_id, "message_id": message_id, "text": prefix + "\n\n✗ Skipped."}
         )
 
+    elif data == "quiz_give_up":
+        try:
+            handle_quiz_give_up(chat_id)
+        except Exception as e:
+            print(f"[quiz_give_up] failed: {e}")
+
     return {"statusCode": 200}
 
 

@@ -251,7 +251,8 @@ def _send_question(chat_id: str, phrase: dict, hints: list[str] | None = None, r
         not_str = ", ".join(f'"{t}"' for t in hints)
         lines.append(f"\n_(Not: {not_str})_")
     lines.append("\nHow do you say this in English?")
-    _send(chat_id, "\n".join(lines))
+    keyboard = {"inline_keyboard": [[{"text": "わからない", "callback_data": "quiz_give_up"}]]}
+    _send(chat_id, "\n".join(lines), reply_markup=keyboard)
 
 
 def _finish_quiz(chat_id: str) -> None:
@@ -259,10 +260,13 @@ def _finish_quiz(chat_id: str) -> None:
     _send(chat_id, "🎉 Quiz done! Great work.")
 
 
-def _send(chat_id: str, text: str) -> None:
+def _send(chat_id: str, text: str, reply_markup: dict | None = None) -> None:
+    payload: dict = {"chat_id": chat_id, "text": text, "parse_mode": "Markdown"}
+    if reply_markup:
+        payload["reply_markup"] = reply_markup
     response = requests.post(
         f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage",
-        json={"chat_id": chat_id, "text": text, "parse_mode": "Markdown"},
+        json=payload,
         timeout=10,
     )
     response.raise_for_status()
