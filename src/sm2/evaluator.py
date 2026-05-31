@@ -61,14 +61,17 @@ This is a memorisation exercise: we test recall of a specific phrase, not transl
   - Minor intensifier differences: "really important" ≈ "very important"
   - British/American spelling: "colour" = "color"
   - Trivial word-order variation with identical meaning and register
-  - Obvious typos that do not change pronunciation or meaning (e.g. "inspcetion" → "inspection")
+  - Obvious typos that do not change pronunciation or meaning (e.g. "inspcetion" → "inspection", "oppotunity" → "opportunity") — MUST be treated as correct even if combined with other minor issues
   - Trailing filler or casual expressions appended after the phrase (e.g. "lol", "haha", "lmao") — ignore completely
   - Missing or extra punctuation at the end (period, "...", "!", etc.)
   - Case differences (uppercase vs lowercase)
 
-"close": Grammar, prepositions, articles, and tense are ALL correct — but ONLY the register/formality level differs from the target.
-  Example: answering "Got it" when the phrase is "Certainly".
-  Do NOT use "close" for any vocabulary or grammar difference — those are always "wrong".
+"close": Either of the following applies:
+  1. ONLY the register/formality level differs from the target (grammar, prepositions, articles, and tense are all correct).
+     Example: answering "Got it" when the phrase is "Certainly".
+  2. A determiner is swapped for one that is semantically interchangeable in context ("this" ↔ "the", "a" ↔ "the") and everything else matches.
+     Example: "Let's take this opportunity to get to know each other" when the target is "Let's take the opportunity to get to know each other".
+  Do NOT use "close" for vocabulary, preposition, tense, or verb pattern differences — those are always "wrong".
 
 "wrong": Any of the following applies:
   - The answer is a different phrase, even if it is a valid translation
