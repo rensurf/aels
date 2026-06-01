@@ -137,13 +137,11 @@ def handle_quiz_answer(chat_id: str, user_answer: str) -> None:
         lines.append(f"Next review in {result.interval} day(s).")
         _send(chat_id, "\n".join(lines))
     else:
-        lines = [f"❌ The answer was: *{target_text}*", ""]
-        lines.append(f"Your answer: \"{user_answer}\"")
-        if eval_result.error_type:
-            lines.append(f"Problem: {eval_result.error_type.replace('_', ' ').title()}")
+        lines = ["✅ Your English works too!", ""]
+        lines.append(f"Also learn: *{target_text}*")
         if eval_result.explanation:
-            lines.append(eval_result.explanation)
-        lines.append("You'll see this again shortly.")
+            lines.append(f"\n{eval_result.explanation}")
+        lines.append("\nYou'll see this again shortly.")
         _send(chat_id, "\n".join(lines))
 
     quiz_state["last_feedback"] = {
