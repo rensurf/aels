@@ -16,6 +16,10 @@ class EvalResult:
     explanation: str
 
 
+def _normalize(text: str) -> str:
+    return text.strip().rstrip(".,!?…").lower()
+
+
 def evaluate_answer(
     japanese: str,
     candidates: list[dict],
@@ -27,6 +31,11 @@ def evaluate_answer(
         candidates: [{"phrase_id": "...", "text": "Got it"}, ...]
         excluded_phrases: other valid translations that must NOT be accepted here
     """
+    normalized_answer = _normalize(user_answer)
+    for c in candidates:
+        if _normalize(c["text"]) == normalized_answer:
+            return EvalResult(quality=5, matched_phrase_id=c["phrase_id"], error_type=None, explanation="")
+
     candidate_lines = "\n".join(
         f'[{i + 1}] "{c["text"]}" (id: {c["phrase_id"]})'
         for i, c in enumerate(candidates)
