@@ -153,10 +153,6 @@ def handle_quiz_answer(chat_id: str, user_answer: str) -> None:
 
     pending.remove(target_id)
 
-    # Re-queue wrong answers for another attempt in this session
-    if eval_result.quality == 1:
-        pending.append(target_id)
-
     if not pending:
         _finish_quiz(chat_id)
         return
