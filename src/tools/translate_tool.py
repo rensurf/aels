@@ -1,10 +1,6 @@
 import json
 
-from openai import OpenAI
-
-from src.config import OPENAI_API_KEY
-
-client = OpenAI(api_key=OPENAI_API_KEY)
+from src.llm.client import chat
 
 prompt = """You are an English teacher helping a Japanese software engineer living in Australia.
 
@@ -32,15 +28,14 @@ def translate_japanese(japanese_text: str, user_id: str) -> list[dict]:
         japanese_text: The Japanese text to translate
         user_id: The user's Telegram user ID (from [user_id=...] in the message)
     """
-    response = client.chat.completions.create(
-        model="gpt-4o-mini",
-        messages=[
+    result = chat(
+        [
             {"role": "system", "content": prompt},
-            {"role": "user", "content": japanese_text}
+            {"role": "user", "content": japanese_text},
         ],
-        response_format={"type": "json_object"}
-    )
-    result = response.choices[0].message.content or "{}"
+        json_mode=True,
+        model_tier="light",
+    ) or "{}"
     translations = json.loads(result).get("translations", [])
 
     phrases = [

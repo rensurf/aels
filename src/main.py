@@ -102,6 +102,16 @@ def _handle_callback_query(body: dict) -> dict:
             json={"chat_id": chat_id, "message_id": message_id, "text": prefix + "\n\n✗ Skipped."}
         )
 
+    elif data == "switch_provider":
+        current = session_client.get_provider(chat_id)
+        new_provider = "claude" if current == "openai" else "openai"
+        session_client.set_provider(chat_id, new_provider)
+        label = "Claude (claude-sonnet-4-6)" if new_provider == "claude" else "GPT-4o"
+        requests.post(
+            f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage",
+            json={"chat_id": chat_id, "text": f"🔄 Switched to {label}. Your conversation history carries over."},
+        )
+
     elif data == "quiz_give_up":
         try:
             handle_quiz_give_up(chat_id)

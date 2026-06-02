@@ -1,8 +1,6 @@
 import json
 
-from openai import OpenAI
-
-client = OpenAI()
+from src.llm.client import chat
 
 
 def detect_intent(user_message: str, quiz_state: dict) -> str:
@@ -37,14 +35,11 @@ When in doubt, choose "question" to avoid advancing the quiz incorrectly.
 
 Respond in JSON: {{"intent": "answer" | "give_up" | "question"}}"""
 
-    response = client.chat.completions.create(
-        model="gpt-4o",
-        messages=[{"role": "user", "content": prompt}],
+    raw = chat(
+        [{"role": "user", "content": prompt}],
+        json_mode=True,
         max_tokens=20,
-        response_format={"type": "json_object"},
-    )
-
-    raw = response.choices[0].message.content or "{}"
+    ) or "{}"
     data = json.loads(raw)
     intent = data.get("intent", "question").strip().lower()
 

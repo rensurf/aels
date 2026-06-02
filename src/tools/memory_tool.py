@@ -2,8 +2,8 @@ import uuid
 from collections import defaultdict
 from typing import Any
 
-from openai import OpenAI
 from src.config import COSMOS_DATABASE, COSMOS_ENDPOINT, COSMOS_GRAPH, COSMOS_KEY
+from src.llm.client import chat
 from src.graph import queries
 from src.graph.client import GremlinClient
 from src.graph.queries import _esc
@@ -29,7 +29,6 @@ def _ensure_user_exists(user_id: str) -> None:
 
 def _classify_pattern(text: str, japanese: str, note: str) -> str:
     try:
-        oai = OpenAI()
         prompt = f"""Classify this English phrase into exactly one category.
 
 English: {text}
@@ -49,12 +48,11 @@ Categories:
 
 Respond with exactly one word from the list above."""
 
-        response = oai.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[{"role": "user", "content": prompt}],
+        result = chat(
+            [{"role": "user", "content": prompt}],
+            model_tier="light",
             max_tokens=10,
-        )
-        result = (response.choices[0].message.content or "other").strip().lower()
+        ).strip().lower()
         return result if result in _VALID_PATTERNS else "other"
     except Exception:
         return "other"

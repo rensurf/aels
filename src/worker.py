@@ -1,7 +1,7 @@
 import asyncio
 import json
 
-from telegram import Bot, InlineKeyboardMarkup, InlineKeyboardButton
+from telegram import Bot, InlineKeyboardButton, InlineKeyboardMarkup
 
 from src.adapters.message_types import IncomingMessage
 from src.agent.teacher_agent import handle_message
@@ -25,6 +25,11 @@ def _build_phrase_keyboard(phrases: list[dict]) -> InlineKeyboardMarkup:
         InlineKeyboardButton("✗ Cancel", callback_data="cancel_phrases"),
     ])
     return InlineKeyboardMarkup(buttons)
+
+
+def _build_switch_keyboard(provider: str) -> InlineKeyboardMarkup:
+    label = "🤖 Switch to Claude" if provider == "openai" else "🤖 Switch to GPT-4o"
+    return InlineKeyboardMarkup([[InlineKeyboardButton(label, callback_data="switch_provider")]])
 
 
 def worker_handler(event, context):
@@ -62,9 +67,8 @@ async def _process(payload: dict) -> None:
                     f"{text}"
                 )
 
-        messages = session_client.load_session(chat_id)
-        response, session = await handle_message(incoming, messages)
-        session_client.save_session(chat_id, session.to_dict())
+        provider = session_client.get_provider(chat_id)
+        response = await handle_message(incoming, chat_id, provider)
         turn_count = session_client.increment_turn_count(chat_id)
 
         raw_pending = session_client.get_pending_phrases(user_id)
@@ -87,6 +91,7 @@ async def _process(payload: dict) -> None:
                 chat_id=chat_id,
                 message_id=thinking_message_id,
                 text=response.text,
+                reply_markup=_build_switch_keyboard(provider),
             )
 
         if turn_count >= _TURN_ALERT_THRESHOLD and (turn_count - _TURN_ALERT_THRESHOLD) % _TURN_ALERT_INTERVAL == 0:

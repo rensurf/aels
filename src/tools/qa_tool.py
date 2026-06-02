@@ -1,10 +1,4 @@
-import os
-
-from openai import OpenAI
-
-openai_api_key = os.getenv("OPENAI_API_KEY")
-
-client = OpenAI(api_key=openai_api_key)
+from src.llm.client import chat
 
 prompt = """You are an English teacher helping a Japanese software engineer living in Australia.
 
@@ -18,14 +12,13 @@ Focus on how native speakers actually use the language in daily life and at work
 
 def answer_english_question(question: str) -> str:
     print(f"[debug] answer_english_question called: question={question[:80]}")
-    response = client.chat.completions.create(
-        model="gpt-4o",
-        messages=[
+    result = chat(
+        [
             {"role": "system", "content": prompt},
-            {"role": "user", "content": question}
+            {"role": "user", "content": question},
         ],
+        max_tokens=500,
     )
-    result = response.choices[0].message.content
 
     return result or ""
 

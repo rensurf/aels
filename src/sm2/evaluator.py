@@ -1,9 +1,7 @@
 import json
 from dataclasses import dataclass
 
-from openai import OpenAI
-
-client = OpenAI()
+from src.llm.client import chat
 
 _QUALITY_MAP = {"correct": 5, "close": 3, "wrong": 1}
 
@@ -102,14 +100,11 @@ For explanation:
 Respond in JSON:
 {{"matched_phrase_id": "..." | null, "judgment": "correct" | "close" | "wrong", "error_type": "..." | null, "explanation": "..."}}"""
 
-    response = client.chat.completions.create(
-        model="gpt-4o",
-        messages=[{"role": "user", "content": prompt}],
+    raw = chat(
+        [{"role": "user", "content": prompt}],
+        json_mode=True,
         max_tokens=200,
-        response_format={"type": "json_object"},
-    )
-
-    raw = response.choices[0].message.content or "{}"
+    ) or "{}"
     data = json.loads(raw)
     judgment = data.get("judgment", "wrong").strip().lower()
     matched_phrase_id = data.get("matched_phrase_id")

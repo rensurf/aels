@@ -82,7 +82,40 @@ class SessionClient:
     def reset_session(self, chat_id: str) -> None:
         self.table.update_item(
             Key={"chat_id": chat_id},
-            UpdateExpression="REMOVE messages, turn_count",
+            UpdateExpression="REMOVE messages, chat_messages, turn_count",
+        )
+
+    def load_messages(self, chat_id: str) -> list[dict]:
+        """Load provider-agnostic chat history (used by DynamoDBHistoryProvider)."""
+        response = self.table.get_item(Key={"chat_id": chat_id})
+        return response.get("Item", {}).get("chat_messages", [])
+
+    def save_messages(self, chat_id: str, messages: list[dict]) -> None:
+        """Append new messages to chat history (called by DynamoDBHistoryProvider after each turn)."""
+        self.table.update_item(
+            Key={"chat_id": chat_id},
+            UpdateExpression=(
+                "SET chat_messages = list_append(if_not_exists(chat_messages, :empty), :m), #t = :t"
+            ),
+            ExpressionAttributeNames={"#t": "ttl"},
+            ExpressionAttributeValues={
+                ":empty": [],
+                ":m": _to_decimal(messages),
+                ":t": int(time.time()) + 86400 * 30,
+            },
+        )
+
+    def get_provider(self, chat_id: str) -> str:
+        """Return the current LLM provider for this chat ("openai" or "claude")."""
+        response = self.table.get_item(Key={"chat_id": chat_id})
+        return str(response.get("Item", {}).get("current_provider", "openai"))
+
+    def set_provider(self, chat_id: str, provider: str) -> None:
+        """Persist the chosen LLM provider for this chat."""
+        self.table.update_item(
+            Key={"chat_id": chat_id},
+            UpdateExpression="SET current_provider = :p",
+            ExpressionAttributeValues={":p": provider},
         )
 
     def increment_turn_count(self, chat_id: str) -> int:

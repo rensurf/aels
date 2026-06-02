@@ -1,28 +1,46 @@
-from agent_framework import Agent, AgentSession
+from agent_framework import Agent
+from agent_framework.anthropic import AnthropicClient
 from agent_framework.openai import OpenAIChatClient
-from src.agent.prompt import TEACHER_PROMPT
-from src.tools.translate_tool import translate_japanese
-from src.tools.qa_tool import answer_english_question
-from src.tools.memory_tool import save_phrases, get_weakness_summary
+
 from src.adapters.message_types import IncomingMessage, OutgoingMessage
+from src.agent.prompt import TEACHER_PROMPT
+from src.session.history_provider import DynamoDBHistoryProvider
+from src.tools.memory_tool import get_weakness_summary, save_phrases
+from src.tools.qa_tool import answer_english_question
+from src.tools.translate_tool import translate_japanese
 
-agent = Agent(
-    client=OpenAIChatClient(model="gpt-4o"),
-    instructions=TEACHER_PROMPT,
-    tools=[translate_japanese, answer_english_question, save_phrases, get_weakness_summary]
-)
+_TOOLS = [translate_japanese, answer_english_question, save_phrases, get_weakness_summary]
 
-async def handle_message(incoming: IncomingMessage, messages: list[dict]) -> tuple[OutgoingMessage, AgentSession]:
-    if messages:
-        session = AgentSession.from_dict(messages)  # type: ignore[arg-type]
+
+def _build_agent(provider: str, history: DynamoDBHistoryProvider) -> Agent:
+    if provider == "claude":
+        client = AnthropicClient(model="claude-sonnet-4-6")
     else:
-        session = agent.create_session()
+        client = OpenAIChatClient(model="gpt-4o")
+    return Agent(
+        client=client,
+        instructions=TEACHER_PROMPT,
+        tools=_TOOLS,
+        context_providers=[history],
+    )
 
-    from src.session.client import SessionClient
+
+async def handle_message(
+    incoming: IncomingMessage,
+    chat_id: str,
+    provider: str = "openai",
+) -> OutgoingMessage:
     from src.config import DYNAMODB_SESSION_TABLE
-    SessionClient(table_name=DYNAMODB_SESSION_TABLE).clear_pending_phrases(incoming.user_id)
+    from src.session.client import SessionClient
+
+    db = SessionClient(table_name=DYNAMODB_SESSION_TABLE)
+    db.clear_pending_phrases(incoming.user_id)
+
+    history = DynamoDBHistoryProvider(chat_id, db)
+    agent = _build_agent(provider, history)
+    session = agent.create_session()
 
     text_with_context = f"[user_id={incoming.user_id}] {incoming.text}"
     result = await agent.run(text_with_context, session=session)
 
-    return OutgoingMessage(text=result.text, style="explanation"), session
+    return OutgoingMessage(text=result.text, style="explanation")
