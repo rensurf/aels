@@ -79,6 +79,7 @@ jobs:
           ENV_VARS="Variables={\
           TELEGRAM_BOT_TOKEN=${{ secrets.TELEGRAM_BOT_TOKEN }},\
           OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }},\
+          ANTHROPIC_API_KEY=${{ secrets.ANTHROPIC_API_KEY }},\
           COSMOS_ENDPOINT=${{ secrets.COSMOS_ENDPOINT }},\
           COSMOS_KEY=${{ secrets.COSMOS_KEY }},\
           COSMOS_DATABASE=${{ secrets.COSMOS_DATABASE }},\
