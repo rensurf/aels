@@ -72,6 +72,9 @@ jobs:
               --function-name "$fn" \
               --s3-bucket ${{ secrets.DEPLOY_BUCKET }} \
               --s3-key deploy-${{ github.sha }}.zip
+            aws lambda wait function-updated \
+              --function-name "$fn" \
+              --region ap-southeast-2
           done
 
       - name: Update Lambda environment variables
@@ -91,4 +94,7 @@ jobs:
             aws lambda update-function-configuration \
               --function-name "$fn" \
               --environment "$ENV_VARS"
+            aws lambda wait function-updated \
+              --function-name "$fn" \
+              --region ap-southeast-2
           done
