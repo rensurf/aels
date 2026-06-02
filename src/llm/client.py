@@ -62,11 +62,12 @@ def _chat_claude(
     max_tokens: int,
 ) -> str:
     import anthropic
+    from anthropic.types import MessageParam, TextBlock
 
     client = anthropic.Anthropic()
 
     system_parts: list[str] = []
-    conv: list[dict] = []
+    conv: list[MessageParam] = []
     for m in messages:
         if m["role"] == "system":
             system_parts.append(m["content"])
@@ -91,4 +92,5 @@ def _chat_claude(
             max_tokens=max_tokens,
             messages=conv,
         )
-    return resp.content[0].text if resp.content else ""
+    text_blocks = [b for b in resp.content if isinstance(b, TextBlock)]
+    return text_blocks[0].text if text_blocks else ""
