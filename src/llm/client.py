@@ -78,10 +78,17 @@ def _chat_claude(
         json_note = "Respond with valid JSON only. Do not include any explanation or markdown fences."
         system = f"{system}\n\n{json_note}".strip() if system else json_note
 
-    resp = client.messages.create(
-        model=_MODELS["claude"][model_tier],
-        max_tokens=max_tokens,
-        messages=conv,
-        **({"system": system} if system else {}),
-    )
+    if system:
+        resp = client.messages.create(
+            model=_MODELS["claude"][model_tier],
+            max_tokens=max_tokens,
+            messages=conv,
+            system=system,
+        )
+    else:
+        resp = client.messages.create(
+            model=_MODELS["claude"][model_tier],
+            max_tokens=max_tokens,
+            messages=conv,
+        )
     return resp.content[0].text if resp.content else ""
