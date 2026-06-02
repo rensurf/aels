@@ -36,29 +36,21 @@ def test_search_phrases_calls_execute_once():
 
 
 def test_classify_pattern_returns_valid_category():
-    mock_response = MagicMock()
-    mock_response.choices[0].message.content = "preposition"
-
-    with patch("src.tools.memory_tool.OpenAI") as MockOpenAI:
-        MockOpenAI.return_value.chat.completions.create.return_value = mock_response
+    with patch("src.tools.memory_tool.chat", return_value="preposition"):
         result = _classify_pattern(text="work on it", japanese="それに取り組む", note="")
 
     assert result == "preposition"
 
 
 def test_classify_pattern_falls_back_to_other_on_unknown_response():
-    mock_response = MagicMock()
-    mock_response.choices[0].message.content = "unknown_category"
-
-    with patch("src.tools.memory_tool.OpenAI") as MockOpenAI:
-        MockOpenAI.return_value.chat.completions.create.return_value = mock_response
+    with patch("src.tools.memory_tool.chat", return_value="unknown_category"):
         result = _classify_pattern(text="test", japanese="テスト", note="")
 
     assert result == "other"
 
 
 def test_classify_pattern_falls_back_to_other_on_exception():
-    with patch("src.tools.memory_tool.OpenAI", side_effect=Exception("API error")):
+    with patch("src.tools.memory_tool.chat", side_effect=Exception("API error")):
         result = _classify_pattern(text="test", japanese="テスト", note="")
 
     assert result == "other"
