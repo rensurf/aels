@@ -3,12 +3,13 @@ from dataclasses import dataclass
 
 from src.llm.client import chat
 
-_QUALITY_MAP = {"correct": 5, "close": 3, "wrong": 1}
+_QUALITY_MAP = {"correct": 5, "close": 3, "works": 3, "wrong": 1}
 
 
 @dataclass
 class EvalResult:
     quality: int
+    judgment: str  # "correct", "close", "works", "wrong"
     matched_phrase_id: str | None
     error_type: str | None
     explanation: str
@@ -32,7 +33,13 @@ def evaluate_answer(
     normalized_answer = _normalize(user_answer)
     for c in candidates:
         if _normalize(c["text"]) == normalized_answer:
-            return EvalResult(quality=5, matched_phrase_id=c["phrase_id"], error_type=None, explanation="")
+            return EvalResult(
+                quality=5,
+                judgment="correct",
+                matched_phrase_id=c["phrase_id"],
+                error_type=None,
+                explanation="",
+            )
 
     candidate_lines = "\n".join(
         f'[{i + 1}] "{c["text"]}" (id: {c["phrase_id"]})'
@@ -58,8 +65,8 @@ Target phrase (the user must match this specifically):
 ## CRITICAL RULE
 
 The user must reproduce the target phrase — not just provide any valid English translation.
-Even if the user's answer correctly translates the Japanese, mark it "wrong" unless it closely matches the listed target.
 This is a memorisation exercise: we test recall of a specific phrase, not translation ability.
+Use "correct" or "close" only when the answer closely matches the target. Use "works" when it is valid English but different phrasing. Use "wrong" only for actual grammatical errors or incomplete answers.
 
 ## Judgment criteria
 
@@ -78,13 +85,15 @@ This is a memorisation exercise: we test recall of a specific phrase, not transl
      Example: answering "Got it" when the phrase is "Certainly".
   2. A determiner is swapped for one that is semantically interchangeable in context ("this" ↔ "the", "a" ↔ "the") and everything else matches.
      Example: "Let's take this opportunity to get to know each other" when the target is "Let's take the opportunity to get to know each other".
-  Do NOT use "close" for vocabulary, preposition, tense, or verb pattern differences — those are always "wrong".
+  Do NOT use "close" for vocabulary, preposition, tense, or verb pattern differences.
+
+"works": The answer is valid, complete English and clearly communicates the Japanese meaning, but uses different vocabulary, expression, or phrasing than the target phrase. Use this when the answer would be understood in a real conversation but is not the phrase to memorise.
 
 "wrong": Any of the following applies:
-  - The answer is a different phrase, even if it is a valid translation
   - Wrong preposition, article, tense, or verb pattern
-  - Missing required particle or word
+  - Missing required word (incomplete sentence)
   - Incorrect or unrelated meaning
+  Do NOT use "wrong" for answers that are valid, complete English translations — use "works" instead.
 
 ## Response format
 
@@ -95,18 +104,24 @@ For error_type, choose one: "preposition" | "article" | "tense" | "verb_pattern"
 For explanation:
 - If correct: empty string
 - If close: one sentence on why it is close and when each form is preferred
+- If works: one sentence on what differs from the target phrase
 - If wrong: explain specifically what is wrong and contrast with the correct phrase
 
 Respond in JSON:
-{{"matched_phrase_id": "..." | null, "judgment": "correct" | "close" | "wrong", "error_type": "..." | null, "explanation": "..."}}"""
+{{"matched_phrase_id": "..." | null, "judgment": "correct" | "close" | "works" | "wrong", "error_type": "..." | null, "explanation": "..."}}"""
 
-    raw = chat(
-        [{"role": "user", "content": prompt}],
-        json_mode=True,
-        max_tokens=200,
-    ) or "{}"
+    raw = (
+        chat(
+            [{"role": "user", "content": prompt}],
+            json_mode=True,
+            max_tokens=200,
+        )
+        or "{}"
+    )
     data = json.loads(raw)
     judgment = data.get("judgment", "wrong").strip().lower()
+    if judgment not in _QUALITY_MAP:
+        judgment = "wrong"
     matched_phrase_id = data.get("matched_phrase_id")
     error_type = data.get("error_type")
     explanation = data.get("explanation", "")
@@ -116,7 +131,8 @@ Respond in JSON:
         matched_phrase_id = None
 
     return EvalResult(
-        quality=_QUALITY_MAP.get(judgment, 1),
+        quality=_QUALITY_MAP[judgment],
+        judgment=judgment,
         matched_phrase_id=matched_phrase_id,
         error_type=error_type,
         explanation=explanation,

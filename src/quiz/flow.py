@@ -1,12 +1,19 @@
 import requests
 from datetime import date
 
-from src.config import TELEGRAM_BOT_TOKEN, COSMOS_ENDPOINT, COSMOS_KEY, COSMOS_DATABASE, COSMOS_GRAPH, DYNAMODB_SESSION_TABLE
+from src.config import (
+    TELEGRAM_BOT_TOKEN,
+    COSMOS_ENDPOINT,
+    COSMOS_KEY,
+    COSMOS_DATABASE,
+    COSMOS_GRAPH,
+    DYNAMODB_SESSION_TABLE,
+)
 from src.graph.client import GremlinClient
 from src.graph import queries
 from src.session.client import SessionClient
 from src.sm2.algorithm import calculate_next_review
-from src.sm2.evaluator import evaluate_answer
+from src.sm2.evaluator import EvalResult, evaluate_answer
 
 _session = SessionClient(table_name=DYNAMODB_SESSION_TABLE)
 _graph = GremlinClient(
@@ -30,13 +37,15 @@ def start_quiz(chat_id: str, user_id: str) -> None:
         if sm2.get("due_date", "0000-00-00") <= today:
             phrase_id = sm2["phrase_id"]
             phrase = phrase_by_id.get(phrase_id, {})
-            due_phrases.append({
-                **phrase,
-                "ease_factor": [sm2.get("ease_factor", 2.5)],
-                "interval": [sm2.get("interval", 0)],
-                "repetitions": [sm2.get("repetitions", 0)],
-                "due_date": [sm2.get("due_date", today)],
-            })
+            due_phrases.append(
+                {
+                    **phrase,
+                    "ease_factor": [sm2.get("ease_factor", 2.5)],
+                    "interval": [sm2.get("interval", 0)],
+                    "repetitions": [sm2.get("repetitions", 0)],
+                    "due_date": [sm2.get("due_date", today)],
+                }
+            )
 
     # Weakest phrases first (lowest ease_factor = answered wrong most often)
     due_phrases.sort(key=lambda p: float(p.get("ease_factor", [2.5])[0]))
@@ -56,15 +65,24 @@ def start_quiz(chat_id: str, user_id: str) -> None:
             if any(phrases_map[did]["japanese"][0] == jp for did in due_ids):
                 not_due_hints.setdefault(jp, []).append(phrase["text"][0])
 
-    _session.set_quiz_state(chat_id, {
-        "pending_phrases": phrase_ids,
-        "current_phrase_id": phrase_ids[0],
-        "user_id": user_id,
-        "phrases": phrases_map,
-        "not_due_hints": not_due_hints,
-    })
+    _session.set_quiz_state(
+        chat_id,
+        {
+            "pending_phrases": phrase_ids,
+            "current_phrase_id": phrase_ids[0],
+            "user_id": user_id,
+            "phrases": phrases_map,
+            "not_due_hints": not_due_hints,
+        },
+    )
 
-    hints = _build_hints(phrases_map, phrase_ids, phrase_ids[0], due_phrases[0]["japanese"][0], not_due_hints)
+    hints = _build_hints(
+        phrases_map,
+        phrase_ids,
+        phrase_ids[0],
+        due_phrases[0]["japanese"][0],
+        not_due_hints,
+    )
     _send_question(chat_id, due_phrases[0], hints, remaining=len(phrase_ids))
 
 
@@ -88,15 +106,20 @@ def handle_quiz_answer(chat_id: str, user_answer: str) -> None:
         if pid != current_id and quiz_state["phrases"][pid]["japanese"][0] == japanese
     ] + quiz_state.get("not_due_hints", {}).get(japanese, [])
 
-    eval_result = evaluate_answer(
-        japanese=japanese,
-        candidates=candidates,
-        user_answer=user_answer,
-        excluded_phrases=excluded or None,
-    )
+    if "_" in user_answer:
+        eval_result = _make_incomplete_result()
+    else:
+        eval_result = evaluate_answer(
+            japanese=japanese,
+            candidates=candidates,
+            user_answer=user_answer,
+            excluded_phrases=excluded or None,
+        )
 
     # Determine which phrase to record: matched one, or current if wrong
-    target_id = eval_result.matched_phrase_id if eval_result.matched_phrase_id else current_id
+    target_id = (
+        eval_result.matched_phrase_id if eval_result.matched_phrase_id else current_id
+    )
     target_phrase = quiz_state["phrases"][target_id]
 
     result = calculate_next_review(
@@ -105,14 +128,16 @@ def handle_quiz_answer(chat_id: str, user_answer: str) -> None:
         repetitions=int(target_phrase.get("repetitions", [0])[0]),
         quality=eval_result.quality,
     )
-    _graph.execute(queries.update_sm2(
-        user_id=user_id,
-        phrase_id=target_id,
-        ease_factor=result.ease_factor,
-        interval=result.interval,
-        repetitions=result.repetitions,
-        due_date=result.due_date,
-    ))
+    _graph.execute(
+        queries.update_sm2(
+            user_id=user_id,
+            phrase_id=target_id,
+            ease_factor=result.ease_factor,
+            interval=result.interval,
+            repetitions=result.repetitions,
+            due_date=result.due_date,
+        )
+    )
 
     # Sync updated SM-2 values into quiz_state so re-attempts use fresh data
     quiz_state["phrases"][target_id] = {
@@ -124,24 +149,38 @@ def handle_quiz_answer(chat_id: str, user_answer: str) -> None:
     }
 
     target_text = target_phrase["text"][0]
-    if eval_result.quality == 5:
+    judgment = eval_result.judgment
+    if judgment == "correct":
         if user_answer.strip().lower() != target_text.strip().lower():
-            _send(chat_id, f"✅ Correct! The phrase was: *{target_text}*\nNext review in {result.interval} day(s).")
+            _send(
+                chat_id,
+                f"✅ Correct! The phrase was: *{target_text}*\nNext review in {result.interval} day(s).",
+            )
         else:
             _send(chat_id, f"✅ Correct! Next review in {result.interval} day(s).")
-    elif eval_result.quality == 3:
+    elif judgment == "close":
         lines = [f"🟡 Close! The answer was: *{target_text}*", ""]
-        lines.append(f"Your answer: \"{user_answer}\"")
+        lines.append(f'Your answer: "{user_answer}"')
         if eval_result.explanation:
             lines.append(eval_result.explanation)
         lines.append(f"Next review in {result.interval} day(s).")
         _send(chat_id, "\n".join(lines))
-    else:
-        lines = ["✅ Your English works too!", ""]
-        lines.append(f"Also learn: *{target_text}*")
+    elif judgment == "works":
+        lines = [f"✅ Your English works! But let's also learn: *{target_text}*"]
         if eval_result.explanation:
             lines.append(f"\n{eval_result.explanation}")
-        lines.append("\nYou'll see this again shortly.")
+        lines.append(f"\nNext review in {result.interval} day(s).")
+        _send(chat_id, "\n".join(lines))
+    elif "_" in user_answer:
+        _send(
+            chat_id,
+            "⚠️ Please write the full phrase — no blanks. Press 'I don't know' if you need the answer.\nYou'll see this again soon.",
+        )
+    else:
+        lines = [f"❌ Wrong. The answer was: *{target_text}*"]
+        if eval_result.explanation:
+            lines.append(f"\n{eval_result.explanation}")
+        lines.append("\nYou'll see this again soon.")
         _send(chat_id, "\n".join(lines))
 
     quiz_state["last_feedback"] = {
@@ -164,7 +203,13 @@ def handle_quiz_answer(chat_id: str, user_answer: str) -> None:
 
     next_phrase = quiz_state["phrases"][next_id]
     next_japanese = next_phrase["japanese"][0]
-    hints = _build_hints(quiz_state["phrases"], pending, next_id, next_japanese, quiz_state.get("not_due_hints", {}))
+    hints = _build_hints(
+        quiz_state["phrases"],
+        pending,
+        next_id,
+        next_japanese,
+        quiz_state.get("not_due_hints", {}),
+    )
     _send_question(chat_id, next_phrase, hints, remaining=len(pending))
 
 
@@ -179,7 +224,9 @@ def handle_quiz_give_up(chat_id: str) -> None:
     target_text = current_phrase["text"][0]
     pending = list(quiz_state["pending_phrases"])
 
-    _send(chat_id, f"❌ The answer was: *{target_text}*\nYou'll see this again shortly.")
+    _send(
+        chat_id, f"❌ The answer was: *{target_text}*\nYou'll see this again shortly."
+    )
 
     result = calculate_next_review(
         ease_factor=float(current_phrase.get("ease_factor", [2.5])[0]),
@@ -187,14 +234,16 @@ def handle_quiz_give_up(chat_id: str) -> None:
         repetitions=int(current_phrase.get("repetitions", [0])[0]),
         quality=1,
     )
-    _graph.execute(queries.update_sm2(
-        user_id=user_id,
-        phrase_id=current_id,
-        ease_factor=result.ease_factor,
-        interval=result.interval,
-        repetitions=result.repetitions,
-        due_date=result.due_date,
-    ))
+    _graph.execute(
+        queries.update_sm2(
+            user_id=user_id,
+            phrase_id=current_id,
+            ease_factor=result.ease_factor,
+            interval=result.interval,
+            repetitions=result.repetitions,
+            due_date=result.due_date,
+        )
+    )
 
     quiz_state["phrases"][current_id] = {
         **quiz_state["phrases"][current_id],
@@ -217,11 +266,33 @@ def handle_quiz_give_up(chat_id: str) -> None:
 
     next_phrase = quiz_state["phrases"][next_id]
     next_japanese = next_phrase["japanese"][0]
-    hints = _build_hints(quiz_state["phrases"], pending, next_id, next_japanese, quiz_state.get("not_due_hints", {}))
+    hints = _build_hints(
+        quiz_state["phrases"],
+        pending,
+        next_id,
+        next_japanese,
+        quiz_state.get("not_due_hints", {}),
+    )
     _send_question(chat_id, next_phrase, hints, remaining=len(pending))
 
 
-def _build_hints(phrases_map: dict, pending: list, current_id: str, japanese: str, not_due_hints: dict) -> list[str]:
+def _make_incomplete_result() -> EvalResult:
+    return EvalResult(
+        quality=1,
+        judgment="wrong",
+        matched_phrase_id=None,
+        error_type="missing_word",
+        explanation="",
+    )
+
+
+def _build_hints(
+    phrases_map: dict,
+    pending: list,
+    current_id: str,
+    japanese: str,
+    not_due_hints: dict,
+) -> list[str]:
     completed = [
         phrases_map[pid]["text"][0]
         for pid in phrases_map
@@ -236,7 +307,9 @@ def _build_hints(phrases_map: dict, pending: list, current_id: str, japanese: st
     return completed + other_pending + static
 
 
-def _send_question(chat_id: str, phrase: dict, hints: list[str] | None = None, remaining: int = 0) -> None:
+def _send_question(
+    chat_id: str, phrase: dict, hints: list[str] | None = None, remaining: int = 0
+) -> None:
     hints = hints or []
     japanese = phrase["japanese"][0]
     remaining_str = f" _({remaining} remaining)_" if remaining > 0 else ""
@@ -245,7 +318,9 @@ def _send_question(chat_id: str, phrase: dict, hints: list[str] | None = None, r
         not_str = ", ".join(f'"{t}"' for t in hints)
         lines.append(f"\n_(Not: {not_str})_")
     lines.append("\nHow do you say this in English?")
-    keyboard = {"inline_keyboard": [[{"text": "I don't know", "callback_data": "quiz_give_up"}]]}
+    keyboard = {
+        "inline_keyboard": [[{"text": "I don't know", "callback_data": "quiz_give_up"}]]
+    }
     _send(chat_id, "\n".join(lines), reply_markup=keyboard)
 
 
