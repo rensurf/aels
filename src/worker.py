@@ -7,8 +7,6 @@ from src.adapters.message_types import IncomingMessage
 from src.agent.teacher_agent import handle_message
 from src.config import DYNAMODB_SESSION_TABLE, TELEGRAM_BOT_TOKEN
 from src.llm.client import transcribe
-from src.quiz.flow import handle_quiz_answer, handle_quiz_give_up
-from src.quiz.intent import detect_intent
 from src.session.client import SessionClient
 
 session_client = SessionClient(table_name=DYNAMODB_SESSION_TABLE)
@@ -66,17 +64,16 @@ async def _process(payload: dict) -> None:
                 text="❌ Couldn't transcribe your voice message. Please try typing.",
             )
             return
-
-    if voice_file_id and quiz_state and text:
-        try:
-            intent = detect_intent(text, quiz_state)
-        except Exception:
-            intent = "answer"
-        await bot.delete_message(chat_id=chat_id, message_id=thinking_message_id)
-        if intent == "give_up":
-            handle_quiz_give_up(chat_id)
-        else:
-            handle_quiz_answer(chat_id, text)
+        session_client.set_pending_voice_text(chat_id, text)
+        await bot.edit_message_text(
+            chat_id=chat_id,
+            message_id=thinking_message_id,
+            text=f'🎤 You said:\n"{text}"\n\nIs this correct?',
+            reply_markup=InlineKeyboardMarkup([[
+                InlineKeyboardButton("✅ Send", callback_data="confirm_voice"),
+                InlineKeyboardButton("🔄 Redo", callback_data="redo_voice"),
+            ]]),
+        )
         return
 
     try:

@@ -142,6 +142,23 @@ class SessionClient:
         response = self.table.get_item(Key={"chat_id": chat_id})
         return str(response.get("Item", {}).get("last_user_text", ""))
 
+    def set_pending_voice_text(self, chat_id: str, text: str) -> None:
+        self.table.update_item(
+            Key={"chat_id": chat_id},
+            UpdateExpression="SET pending_voice_text = :t",
+            ExpressionAttributeValues={":t": text},
+        )
+
+    def get_pending_voice_text(self, chat_id: str) -> str:
+        response = self.table.get_item(Key={"chat_id": chat_id})
+        return str(response.get("Item", {}).get("pending_voice_text", ""))
+
+    def clear_pending_voice_text(self, chat_id: str) -> None:
+        self.table.update_item(
+            Key={"chat_id": chat_id},
+            UpdateExpression="REMOVE pending_voice_text",
+        )
+
     def is_duplicate_update(self, update_id: int) -> bool:
         try:
             self.table.put_item(

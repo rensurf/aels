@@ -130,6 +130,41 @@ def _handle_callback_query(body: dict) -> dict:
                 })
             )
 
+    elif data == "confirm_voice":
+        text = session_client.get_pending_voice_text(chat_id)
+        session_client.clear_pending_voice_text(chat_id)
+        if text:
+            quiz_state = session_client.get_quiz_state(chat_id)
+            if quiz_state:
+                try:
+                    intent = detect_intent(text, quiz_state)
+                except Exception:
+                    intent = "answer"
+                if intent == "give_up":
+                    handle_quiz_give_up(chat_id)
+                else:
+                    handle_quiz_answer(chat_id, text)
+            else:
+                thinking_id = _send_thinking(chat_id)
+                sqs.send_message(
+                    QueueUrl=SQS_WORKER_QUEUE_URL,
+                    MessageBody=json.dumps({
+                        "chat_id": chat_id,
+                        "user_id": user_id,
+                        "text": text,
+                        "thinking_message_id": thinking_id,
+                        "quiz_state": None,
+                        "voice_file_id": None,
+                    }),
+                )
+
+    elif data == "redo_voice":
+        session_client.clear_pending_voice_text(chat_id)
+        requests.post(
+            f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage",
+            json={"chat_id": chat_id, "text": "🎤 Send your voice message again."},
+        )
+
     elif data == "quiz_give_up":
         try:
             handle_quiz_give_up(chat_id)
