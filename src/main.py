@@ -251,7 +251,7 @@ def lambda_handler(event, context):
         return {"statusCode": 200}
 
     quiz_state = session_client.get_quiz_state(chat_id)
-    if quiz_state:
+    if quiz_state and not voice_file_id:
         try:
             intent = detect_intent(text, quiz_state)
         except Exception as e:
