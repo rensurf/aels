@@ -24,7 +24,7 @@ _graph = GremlinClient(
 )
 
 
-def start_quiz(chat_id: str, user_id: str) -> None:
+def start_quiz(chat_id: str, user_id: str, limit: int | None = None) -> None:
     today = date.today().isoformat()
 
     sm2_rows = _graph.execute(queries.get_all_sm2_data(user_id))
@@ -54,7 +54,8 @@ def start_quiz(chat_id: str, user_id: str) -> None:
         _send(chat_id, "No phrases due for review today. Keep chatting to learn more!")
         return
 
-    phrase_ids = [p["phrase_id"][0] for p in due_phrases[:30]]
+    cap = min(limit, len(due_phrases)) if limit else min(30, len(due_phrases))
+    phrase_ids = [p["phrase_id"][0] for p in due_phrases[:cap]]
     phrases_map = {p["phrase_id"][0]: p for p in due_phrases}
 
     due_ids = set(phrase_ids)

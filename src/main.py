@@ -165,6 +165,18 @@ def _handle_callback_query(body: dict) -> dict:
             json={"chat_id": chat_id, "text": "🎤 Send your voice message again."},
         )
 
+    elif data.startswith("quiz_count_"):
+        count = data.split("_")[-1]
+        limit = None if count == "all" else int(count)
+        try:
+            start_quiz(chat_id, user_id, limit=limit)
+        except Exception as e:
+            print(f"[quiz_count] start_quiz failed: {e}")
+            requests.post(
+                f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage",
+                json={"chat_id": chat_id, "text": f"Something went wrong: {e}"},
+            )
+
     elif data == "quiz_give_up":
         try:
             handle_quiz_give_up(chat_id)
@@ -194,14 +206,19 @@ def lambda_handler(event, context):
     voice_file_id = body["message"].get("voice", {}).get("file_id") if not text else None
 
     if text == "/review":
-        try:
-            start_quiz(chat_id, user_id)
-        except Exception as e:
-            print(f"[/review] start_quiz failed: {e}")
-            requests.post(
-                f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage",
-                json={"chat_id": chat_id, "text": f"Something went wrong: {e}"},
-            )
+        requests.post(
+            f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage",
+            json={
+                "chat_id": chat_id,
+                "text": "How many phrases would you like to review?",
+                "reply_markup": {"inline_keyboard": [[
+                    {"text": "5", "callback_data": "quiz_count_5"},
+                    {"text": "10", "callback_data": "quiz_count_10"},
+                    {"text": "20", "callback_data": "quiz_count_20"},
+                    {"text": "All", "callback_data": "quiz_count_all"},
+                ]]},
+            },
+        )
         return {"statusCode": 200}
 
     if text == "/reset":
