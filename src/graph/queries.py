@@ -125,3 +125,13 @@ def get_phrase_patterns(user_id: str) -> str:
      .by(values('name'))
     """
     return query
+
+def update_phrase(phrase_id: str, text: str, japanese: str) -> str:
+    return (
+        f"g.V().has('phrase', 'phrase_id', '{_esc(phrase_id)}')"
+        f".property('text', '{_esc(text)}')"
+        f".property('japanese', '{_esc(japanese)}')"
+    )
+
+def delete_phrase(phrase_id: str) -> str:
+    return f"g.V().has('phrase', 'phrase_id', '{_esc(phrase_id)}').drop()"

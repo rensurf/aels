@@ -112,6 +112,24 @@ def _handle_callback_query(body: dict) -> dict:
             json={"chat_id": chat_id, "text": f"🔄 Switched to {label}. Your conversation history carries over."},
         )
 
+    elif data == "ask_other":
+        current = session_client.get_provider(chat_id)
+        other = "claude" if current == "openai" else "openai"
+        last_text = session_client.get_last_message(chat_id)
+        if last_text:
+            thinking_id = _send_thinking(chat_id)
+            sqs.send_message(
+                QueueUrl=SQS_WORKER_QUEUE_URL,
+                MessageBody=json.dumps({
+                    "chat_id": chat_id,
+                    "user_id": user_id,
+                    "text": last_text,
+                    "thinking_message_id": thinking_id,
+                    "quiz_state": None,
+                    "override_provider": other,
+                })
+            )
+
     elif data == "quiz_give_up":
         try:
             handle_quiz_give_up(chat_id)
@@ -137,6 +155,8 @@ def lambda_handler(event, context):
     chat_id = str(body["message"]["chat"]["id"])
     user_id = str(body["message"]["from"]["id"])
     text = body["message"].get("text", "")
+
+    voice_file_id = body["message"].get("voice", {}).get("file_id") if not text else None
 
     if text == "/review":
         try:
@@ -274,6 +294,7 @@ def lambda_handler(event, context):
             "text": text,
             "thinking_message_id": thinking_message_id,
             "quiz_state": quiz_state,
+            "voice_file_id": voice_file_id,
         }, cls=_DecimalEncoder)
     )
 

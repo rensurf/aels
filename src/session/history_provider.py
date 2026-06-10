@@ -1,3 +1,4 @@
+import json
 from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any
 
@@ -6,6 +7,23 @@ from agent_framework._types import Message
 
 if TYPE_CHECKING:
     from src.session.client import SessionClient
+
+
+def _normalize_message(m: dict) -> dict:
+    """Ensure function_call arguments are always a JSON string, not a dict.
+
+    Claude saves arguments as a dict; OpenAI requires a JSON string.
+    Normalizing at save time keeps the stored format provider-agnostic.
+    """
+    contents = m.get("contents")
+    if not contents:
+        return m
+    normalized = []
+    for c in contents:
+        if c.get("type") == "function_call" and isinstance(c.get("arguments"), dict):
+            c = {**c, "arguments": json.dumps(c["arguments"])}
+        normalized.append(c)
+    return {**m, "contents": normalized}
 
 
 class DynamoDBHistoryProvider(HistoryProvider):
@@ -41,4 +59,4 @@ class DynamoDBHistoryProvider(HistoryProvider):
         **kwargs: Any,
     ) -> None:
         if messages:
-            self.db.save_messages(self.chat_id, [m.to_dict() for m in messages])
+            self.db.save_messages(self.chat_id, [_normalize_message(m.to_dict()) for m in messages])

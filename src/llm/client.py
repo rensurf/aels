@@ -1,5 +1,7 @@
+import io
 import os
 
+import requests
 from openai import OpenAI
 
 _MODELS: dict[str, dict[str, str]] = {
@@ -94,3 +96,18 @@ def _chat_claude(
         )
     text_blocks = [b for b in resp.content if isinstance(b, TextBlock)]
     return text_blocks[0].text if text_blocks else ""
+
+
+def transcribe(telegram_file_id: str) -> str:
+    """Download a Telegram voice file and transcribe it with Whisper."""
+    token = os.getenv("TELEGRAM_BOT_TOKEN", "")
+    file_path = requests.get(
+        f"https://api.telegram.org/bot{token}/getFile",
+        params={"file_id": telegram_file_id},
+    ).json()["result"]["file_path"]
+    audio_bytes = requests.get(
+        f"https://api.telegram.org/file/bot{token}/{file_path}"
+    ).content
+    buf = io.BytesIO(audio_bytes)
+    buf.name = "voice.ogg"
+    return OpenAI().audio.transcriptions.create(model="whisper-1", file=buf).text

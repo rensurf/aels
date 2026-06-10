@@ -131,6 +131,17 @@ class SessionClient:
         response = self.table.get_item(Key={"chat_id": chat_id})
         return int(response.get("Item", {}).get("turn_count", 0))
 
+    def set_last_message(self, chat_id: str, text: str) -> None:
+        self.table.update_item(
+            Key={"chat_id": chat_id},
+            UpdateExpression="SET last_user_text = :t",
+            ExpressionAttributeValues={":t": text},
+        )
+
+    def get_last_message(self, chat_id: str) -> str:
+        response = self.table.get_item(Key={"chat_id": chat_id})
+        return str(response.get("Item", {}).get("last_user_text", ""))
+
     def is_duplicate_update(self, update_id: int) -> bool:
         try:
             self.table.put_item(
