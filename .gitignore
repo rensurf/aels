@@ -21,6 +21,9 @@ docs/en/internal/
 **/tfplan
 **/placeholder.zip
 
+# Backup files (user data)
+docs/backup_phrases_*.json
+
 # Build artifacts
 deployment.zip
 dist/

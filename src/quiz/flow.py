@@ -305,7 +305,7 @@ def _build_hints(
         if pid != current_id and phrases_map[pid]["japanese"][0] == japanese
     ]
     static = not_due_hints.get(japanese, [])
-    return completed + other_pending + static
+    return list(dict.fromkeys(completed + other_pending + static))
 
 
 def _send_question(
