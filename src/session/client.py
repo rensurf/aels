@@ -159,6 +159,23 @@ class SessionClient:
             UpdateExpression="REMOVE pending_voice_text",
         )
 
+    def set_pending_memo(self, chat_id: str, phrase_id: str) -> None:
+        self.table.update_item(
+            Key={"chat_id": chat_id},
+            UpdateExpression="SET pending_memo_phrase_id = :p",
+            ExpressionAttributeValues={":p": phrase_id},
+        )
+
+    def get_pending_memo(self, chat_id: str) -> str:
+        response = self.table.get_item(Key={"chat_id": chat_id})
+        return str(response.get("Item", {}).get("pending_memo_phrase_id", ""))
+
+    def clear_pending_memo(self, chat_id: str) -> None:
+        self.table.update_item(
+            Key={"chat_id": chat_id},
+            UpdateExpression="REMOVE pending_memo_phrase_id",
+        )
+
     def is_duplicate_update(self, update_id: int) -> bool:
         try:
             self.table.put_item(

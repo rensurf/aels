@@ -2,20 +2,19 @@ import json
 
 from src.llm.client import chat
 
-prompt = """You are an English teacher helping a Japanese software engineer living in Australia.
+prompt = """You are an English teacher helping a Japanese software engineer.
 
-When given Japanese text, provide exactly 3 English expressions that native Australian speakers actually use in everyday conversation.
-Prioritise natural, spoken expressions — the kind you'd hear at a café, on the street, or chatting with colleagues.
-Avoid textbook or overly formal phrasing.
+When given Japanese text, provide exactly 3 natural English expressions.
+Each expression should sound like something a native English speaker would naturally say in everyday conversation.
 Each "text" must be a complete, grammatically correct phrase or sentence. Do not cut off mid-phrase.
-For each option, note why native speakers prefer it or when it sounds most natural.
+For each option, briefly note when it's most natural or how it differs from the others.
 
 Return JSON in this exact format:
 {
   "translations": [
     {
       "text": "I tend to be easily influenced by others.",
-      "note": "Natural and complete — 'tend to' softens the statement, sounds self-aware"
+      "note": "Natural and conversational — 'tend to' softens the statement"
     }
   ]
 }
@@ -35,7 +34,7 @@ def translate_japanese(japanese_text: str, user_id: str) -> list[dict]:
             {"role": "user", "content": japanese_text},
         ],
         json_mode=True,
-        model_tier="light",
+        model_tier="main",
     ) or "{}"
     translations = json.loads(result).get("translations", [])
 

@@ -7,9 +7,18 @@ from src.session.client import SessionClient
 from src.quiz.flow import start_quiz, handle_quiz_answer, handle_quiz_give_up
 from src.quiz.intent import detect_intent
 from src.tools.memory_tool import do_save_phrases, get_recent_phrases, search_phrases, get_progress
+from src.graph.client import GremlinClient
+from src.graph import queries as graph_queries
+from src.config import COSMOS_ENDPOINT, COSMOS_KEY, COSMOS_DATABASE, COSMOS_GRAPH
 
 session_client = SessionClient(table_name=DYNAMODB_SESSION_TABLE)
 sqs = boto3.client("sqs", region_name="ap-southeast-2")
+_graph = GremlinClient(
+    endpoint=COSMOS_ENDPOINT,
+    key=COSMOS_KEY,
+    database=COSMOS_DATABASE,
+    graph=COSMOS_GRAPH,
+)
 
 
 def _v(item: dict, key: str) -> str:
@@ -177,6 +186,14 @@ def _handle_callback_query(body: dict) -> dict:
                 json={"chat_id": chat_id, "text": f"Something went wrong: {e}"},
             )
 
+    elif data.startswith("add_memo_"):
+        phrase_id = data[len("add_memo_"):]
+        session_client.set_pending_memo(chat_id, phrase_id)
+        requests.post(
+            f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage",
+            json={"chat_id": chat_id, "text": "📝 Type your memo:"},
+        )
+
     elif data == "quiz_give_up":
         try:
             handle_quiz_give_up(chat_id)
@@ -204,6 +221,23 @@ def lambda_handler(event, context):
     text = body["message"].get("text", "")
 
     voice_file_id = body["message"].get("voice", {}).get("file_id") if not text else None
+
+    pending_memo_phrase_id = session_client.get_pending_memo(chat_id)
+    if pending_memo_phrase_id and text and not text.startswith("/"):
+        session_client.clear_pending_memo(chat_id)
+        try:
+            _graph.execute(graph_queries.set_phrase_memo(pending_memo_phrase_id, text))
+            requests.post(
+                f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage",
+                json={"chat_id": chat_id, "text": "📝 Memo saved!"},
+            )
+        except Exception as e:
+            print(f"[memo] save failed: {e}")
+            requests.post(
+                f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage",
+                json={"chat_id": chat_id, "text": "❌ Failed to save memo. Please try again."},
+            )
+        return {"statusCode": 200}
 
     if text == "/review":
         requests.post(

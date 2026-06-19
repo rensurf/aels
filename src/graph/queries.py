@@ -135,3 +135,9 @@ def update_phrase(phrase_id: str, text: str, japanese: str) -> str:
 
 def delete_phrase(phrase_id: str) -> str:
     return f"g.V().has('phrase', 'phrase_id', '{_esc(phrase_id)}').drop()"
+
+def set_phrase_memo(phrase_id: str, memo: str) -> str:
+    return (
+        f"g.V().has('phrase', 'phrase_id', '{_esc(phrase_id)}')"
+        f".property('memo', '{_esc(memo)}')"
+    )

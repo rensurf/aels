@@ -313,15 +313,20 @@ def _send_question(
 ) -> None:
     hints = hints or []
     japanese = phrase["japanese"][0]
+    phrase_id = phrase["phrase_id"][0]
     remaining_str = f" _({remaining} remaining)_" if remaining > 0 else ""
     lines = [f"🇯🇵 {japanese}{remaining_str}"]
+    memo = phrase.get("memo", [None])[0]
+    if memo:
+        lines.append(f"\n📝 _{memo}_")
     if hints:
         not_str = ", ".join(f'"{t}"' for t in hints)
         lines.append(f"\n_(Not: {not_str})_")
     lines.append("\nHow do you say this in English?")
-    keyboard = {
-        "inline_keyboard": [[{"text": "I don't know", "callback_data": "quiz_give_up"}]]
-    }
+    keyboard = {"inline_keyboard": [[
+        {"text": "I don't know", "callback_data": "quiz_give_up"},
+        {"text": "📝 Memo", "callback_data": f"add_memo_{phrase_id}"},
+    ]]}
     _send(chat_id, "\n".join(lines), reply_markup=keyboard)
 
 
