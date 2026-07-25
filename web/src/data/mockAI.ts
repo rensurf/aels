@@ -26,6 +26,7 @@ export function aiPhraseToPhrase(p: AIPhrase): Phrase {
     verbId: p.verbId,
     pattern: p.pattern,
     register: p.register,
+    type: 'sentence',
     easeFactor: 2.5,
     dueDate: new Date().toISOString().slice(0, 10),
     repetitions: 0,

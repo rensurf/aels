@@ -1,4 +1,4 @@
-import type { Phrase, Verb } from './types'
+import type { Phrase, Verb, PhraseType } from './types'
 
 const API_BASE = (import.meta.env.VITE_API_BASE_URL as string) ?? ''
 const API_KEY = (import.meta.env.VITE_API_KEY as string) ?? ''
@@ -14,11 +14,13 @@ function mapPhrase(r: Record<string, unknown>): Phrase {
     verbId: String(r.verb_id ?? ''),
     pattern: String(r.pattern ?? ''),
     register: (r.register as Phrase['register']) ?? 'informal',
+    type: (r.type as PhraseType) ?? 'sentence',
     easeFactor: Number(r.ease_factor ?? 2.5),
     dueDate: String(r.due_date ?? ''),
     repetitions: Number(r.repetitions ?? 0),
     interval: Number(r.interval ?? 0),
     memo: r.memo != null ? String(r.memo) : undefined,
+    examples: Array.isArray(r.examples) ? (r.examples as string[]) : undefined,
   }
 }
 
@@ -92,14 +94,48 @@ export interface ChatResponse {
   }>
 }
 
-export async function chatWithTeacher(text: string): Promise<ChatResponse> {
+export async function chatWithTeacher(text: string, threadId?: string): Promise<ChatResponse> {
+  const body: Record<string, string> = { text }
+  if (threadId) body.thread_id = threadId
   const resp = await fetch(`${API_BASE}/chat`, {
     method: 'POST',
     headers: { ...headers, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ text }),
+    body: JSON.stringify(body),
   })
   if (!resp.ok) throw new Error(`Chat failed: ${resp.status}`)
   return resp.json() as Promise<ChatResponse>
+}
+
+export interface Thread {
+  thread_id: string
+  created_at: string
+}
+
+export interface ThreadDetail extends Thread {
+  messages: Array<{ role: 'user' | 'assistant'; content: string }>
+}
+
+export async function createThread(): Promise<Thread> {
+  const resp = await fetch(`${API_BASE}/threads`, {
+    method: 'POST',
+    headers: { ...headers, 'Content-Type': 'application/json' },
+    body: '{}',
+  })
+  if (!resp.ok) throw new Error(`Create thread failed: ${resp.status}`)
+  return resp.json() as Promise<Thread>
+}
+
+export async function fetchThreads(): Promise<Thread[]> {
+  const resp = await fetch(`${API_BASE}/threads`, { headers })
+  if (!resp.ok) throw new Error(`Fetch threads failed: ${resp.status}`)
+  const json = await resp.json() as { items: Thread[] }
+  return json.items
+}
+
+export async function fetchThread(threadId: string): Promise<ThreadDetail> {
+  const resp = await fetch(`${API_BASE}/threads/${threadId}`, { headers })
+  if (!resp.ok) throw new Error(`Fetch thread failed: ${resp.status}`)
+  return resp.json() as Promise<ThreadDetail>
 }
 
 export async function savePhrase(phrase: {
@@ -109,6 +145,8 @@ export async function savePhrase(phrase: {
   verb_id: string
   pattern: string
   register: Phrase['register']
+  type?: PhraseType
+  examples?: string[]
 }): Promise<Phrase> {
   const resp = await fetch(`${API_BASE}/phrases`, {
     method: 'POST',
@@ -117,6 +155,43 @@ export async function savePhrase(phrase: {
   })
   if (!resp.ok) throw new Error(`Save phrase failed: ${resp.status}`)
   return mapPhrase(await resp.json() as Record<string, unknown>)
+}
+
+export interface AnalyzeResponse {
+  japanese: string
+  type: PhraseType
+  verb_id: string
+  note: string
+  register: Phrase['register']
+  example: string
+}
+
+export async function updatePhrase(phraseId: string, updates: {
+  text?: string
+  japanese?: string
+  note?: string
+  verb_id?: string
+  register?: Phrase['register']
+  type?: PhraseType
+  examples?: string[]
+}): Promise<Phrase> {
+  const resp = await fetch(`${API_BASE}/phrases/${phraseId}`, {
+    method: 'PUT',
+    headers: { ...headers, 'Content-Type': 'application/json' },
+    body: JSON.stringify(updates),
+  })
+  if (!resp.ok) throw new Error(`Update phrase failed: ${resp.status}`)
+  return mapPhrase(await resp.json() as Record<string, unknown>)
+}
+
+export async function analyzePhrase(text: string): Promise<AnalyzeResponse> {
+  const resp = await fetch(`${API_BASE}/analyze`, {
+    method: 'POST',
+    headers: { ...headers, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ text }),
+  })
+  if (!resp.ok) throw new Error(`Analyze failed: ${resp.status}`)
+  return resp.json() as Promise<AnalyzeResponse>
 }
 
 export async function updateVerb(verb: Verb): Promise<Verb> {

@@ -37,6 +37,7 @@ interface Props {
 export function VariantA({ verbs, phrases, onVerbAdded, onVerbUpdated, onVerbDeleted }: Props) {
   const [selectedId, setSelectedId] = useState<string>(verbs[0]?.id ?? '')
   const [addState, setAddState] = useState<AddState>({ status: 'idle' })
+  const [sidebarOpen, setSidebarOpen] = useState(() => window.innerWidth >= 640)
 
   const selectedVerb = verbs.find(v => v.id === selectedId)
   const isAdding = addState.status !== 'idle'
@@ -72,19 +73,28 @@ export function VariantA({ verbs, phrases, onVerbAdded, onVerbUpdated, onVerbDel
     if (addState.status === 'preview' && addState.saving) return
     setSelectedId(id)
     setAddState({ status: 'idle' })
+    if (window.innerWidth < 640) setSidebarOpen(false)
   }
 
   return (
     <div style={{ display: 'flex', height: '100vh', fontFamily: 'system-ui, sans-serif', background: '#0f172a', color: '#e2e8f0' }}>
       {/* Sidebar */}
-      <aside style={{ width: 200, background: '#1e293b', borderRight: '1px solid #334155', display: 'flex', flexDirection: 'column', flexShrink: 0 }}>
+      <aside style={{ width: sidebarOpen ? 200 : 0, background: '#1e293b', borderRight: sidebarOpen ? '1px solid #334155' : 'none', display: 'flex', flexDirection: 'column', flexShrink: 0, overflow: 'hidden', transition: 'width 0.2s ease' }}>
+        <div style={{ width: 200, display: 'flex', flexDirection: 'column', flex: 1 }}>
         <div style={{ padding: '16px 12px 8px', fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.1em', color: '#64748b', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <span>Verbs</span>
-          <button
-            onClick={() => { if (!isAdding) setAddState({ status: 'entering', input: '' }) }}
-            title="Add verb"
-            style={{ background: 'none', border: 'none', color: '#64748b', cursor: isAdding ? 'default' : 'pointer', fontSize: 18, lineHeight: 1, padding: '0 2px', opacity: isAdding ? 0.4 : 1 }}
-          >+</button>
+          <div style={{ display: 'flex', gap: 4 }}>
+            <button
+              onClick={() => { if (!isAdding) setAddState({ status: 'entering', input: '' }) }}
+              title="Add verb"
+              style={{ background: 'none', border: 'none', color: '#64748b', cursor: isAdding ? 'default' : 'pointer', fontSize: 18, lineHeight: 1, padding: '0 2px', opacity: isAdding ? 0.4 : 1 }}
+            >+</button>
+            <button
+              onClick={() => setSidebarOpen(false)}
+              title="Close sidebar"
+              style={{ background: 'none', border: 'none', color: '#475569', cursor: 'pointer', fontSize: 16, lineHeight: 1, padding: '0 2px' }}
+            >✕</button>
+          </div>
         </div>
 
         {addState.status === 'entering' && (
@@ -142,10 +152,19 @@ export function VariantA({ verbs, phrases, onVerbAdded, onVerbUpdated, onVerbDel
             )
           })}
         </div>
+        </div>
       </aside>
 
       {/* Main */}
-      <main style={{ flex: 1, overflowY: 'auto', padding: 32 }}>
+      <main style={{ flex: 1, overflowY: 'auto', padding: 24, minWidth: 0 }}>
+        {!sidebarOpen && (
+          <button
+            onClick={() => setSidebarOpen(true)}
+            style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 16, padding: '6px 12px', background: '#1e293b', border: '1px solid #334155', borderRadius: 6, color: '#94a3b8', fontSize: 13, cursor: 'pointer' }}
+          >
+            ☰ {selectedVerb?.base ?? 'Verbs'}
+          </button>
+        )}
         {addState.status === 'preview'
           ? <AddVerbPreview draft={addState.draft} saving={addState.saving} onDraftChange={handleDraftChange} onSave={handleSave} onCancel={handleCancel} />
           : selectedVerb

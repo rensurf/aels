@@ -1,4 +1,5 @@
 export type Register = 'formal' | 'informal'
+export type PhraseType = 'sentence' | 'phrasal_verb' | 'idiom' | 'fixed_phrase'
 
 export interface VerbPattern {
   code: string
@@ -15,11 +16,13 @@ export interface Phrase {
   verbId: string
   pattern: string
   register: Register
+  type: PhraseType
   easeFactor: number
   dueDate: string
   repetitions: number
   interval: number
   memo?: string
+  examples?: string[]
 }
 
 export interface Verb {

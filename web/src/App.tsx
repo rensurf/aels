@@ -30,6 +30,10 @@ export default function App() {
     setPhrases(prev => [...prev, ...newPhrases])
   }, [])
 
+  const handlePhraseUpdated = useCallback((updated: Phrase) => {
+    setPhrases(prev => prev.map(p => p.id === updated.id ? updated : p))
+  }, [])
+
   const handleVerbAdded = useCallback((verb: Verb) => {
     setVerbs(prev => [...prev, verb])
   }, [])
@@ -61,7 +65,7 @@ export default function App() {
   return (
     <>
       {view === 'A' && <VariantA verbs={verbs} phrases={phrases} onVerbAdded={handleVerbAdded} onVerbUpdated={handleVerbUpdated} onVerbDeleted={handleVerbDeleted} />}
-      {view === 'B' && <VariantB verbs={verbs} phrases={phrases} />}
+      {view === 'B' && <VariantB verbs={verbs} phrases={phrases} onPhrasesAdded={handlePhrasesAdded} onPhraseUpdated={handlePhraseUpdated} />}
       {view === 'C' && <VariantC phrases={phrases} verbs={verbs} />}
       {view === 'D' && <VariantD onPhrasesAdded={handlePhrasesAdded} />}
       <NavBar current={view} onChange={k => setView(k as View)} />

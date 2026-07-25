@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import type { Phrase } from '../types'
-import { chatWithTeacher, savePhrase } from '../api'
-import type { ChatResponse } from '../api'
+import { chatWithTeacher, savePhrase, createThread, fetchThreads, fetchThread } from '../api'
+import type { ChatResponse, Thread } from '../api'
 
 type ProposedPhrase = ChatResponse['phrases'][number] & { _id: string }
 
@@ -16,30 +16,104 @@ interface Props {
   onPhrasesAdded: (phrases: Phrase[]) => void
 }
 
+const LAST_THREAD_KEY = 'aels_last_thread_id'
+const TURN_BANNER_THRESHOLD = 10
 let _idCounter = 0
 
+function formatDate(iso: string): string {
+  const d = new Date(iso)
+  return d.toLocaleDateString('ja-JP', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+}
+
+const INTRO_MSG: Message = {
+  id: 'intro',
+  role: 'assistant',
+  text: 'こんにちは、Ren！\n\n英語で言いたいことがあれば日本語で気軽に聞いてください。気に入ったフレーズを選んで保存できます。\n\n例：「確認しておきます、って英語でなんていう？」',
+}
+
 export function VariantD({ onPhrasesAdded }: Props) {
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      id: 'intro',
-      role: 'assistant',
-      text: 'こんにちは、Ren！\n\n英語で言いたいことがあれば日本語で気軽に聞いてください。気に入ったフレーズを選んで保存できます。\n\n例：「確認しておきます、って英語でなんていう？」',
-    },
-  ])
+  const [threads, setThreads] = useState<Thread[]>([])
+  const [activeThreadId, setActiveThreadId] = useState<string | null>(null)
+  const [messages, setMessages] = useState<Message[]>([INTRO_MSG])
   const [input, setInput] = useState('')
   const [isTyping, setIsTyping] = useState(false)
   const [selections, setSelections] = useState<Record<string, Set<string>>>({})
   const [savedMessages, setSavedMessages] = useState<Set<string>>(new Set())
   const [savingMessages, setSavingMessages] = useState<Set<string>>(new Set())
+  const [showThreadList, setShowThreadList] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
+
+  // ターン数 = user メッセージの数
+  const turnCount = messages.filter(m => m.role === 'user').length
+
+  useEffect(() => {
+    void (async () => {
+      try {
+        const list = await fetchThreads()
+        setThreads(list)
+        const saved = localStorage.getItem(LAST_THREAD_KEY)
+        if (saved && list.some(t => t.thread_id === saved)) {
+          await loadThread(saved)
+        }
+      } catch {
+        // API 未接続でも UI は動く
+      }
+    })()
+  }, [])
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages, isTyping])
 
+  async function loadThread(threadId: string) {
+    try {
+      const detail = await fetchThread(threadId)
+      const loaded: Message[] = detail.messages.map((m, i) => ({
+        id: `loaded-${i}`,
+        role: m.role,
+        text: m.content,
+      }))
+      setMessages(loaded.length > 0 ? loaded : [INTRO_MSG])
+      setSelections({})
+      setSavedMessages(new Set())
+      setActiveThreadId(threadId)
+      localStorage.setItem(LAST_THREAD_KEY, threadId)
+    } catch {
+      // silently ignore
+    }
+  }
+
+  async function handleNewThread() {
+    try {
+      const thread = await createThread()
+      setThreads(prev => [thread, ...prev])
+      setActiveThreadId(thread.thread_id)
+      localStorage.setItem(LAST_THREAD_KEY, thread.thread_id)
+      setMessages([INTRO_MSG])
+      setSelections({})
+      setSavedMessages(new Set())
+      setShowThreadList(false)
+    } catch (e) {
+      console.error('Create thread failed:', e)
+    }
+  }
+
   async function handleSend() {
     const text = input.trim()
     if (!text) return
+
+    let threadId = activeThreadId
+    if (!threadId) {
+      try {
+        const thread = await createThread()
+        setThreads(prev => [thread, ...prev])
+        threadId = thread.thread_id
+        setActiveThreadId(threadId)
+        localStorage.setItem(LAST_THREAD_KEY, threadId)
+      } catch {
+        // proceed without thread_id
+      }
+    }
 
     const userMsg: Message = { id: `u${Date.now()}`, role: 'user', text }
     setMessages(prev => [...prev, userMsg])
@@ -47,7 +121,7 @@ export function VariantD({ onPhrasesAdded }: Props) {
     setIsTyping(true)
 
     try {
-      const response = await chatWithTeacher(text)
+      const response = await chatWithTeacher(text, threadId ?? undefined)
       const proposed: ProposedPhrase[] = response.phrases.map(p => ({ ...p, _id: `p${++_idCounter}` }))
       const msgId = `a${Date.now()}`
 
@@ -112,14 +186,45 @@ export function VariantD({ onPhrasesAdded }: Props) {
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: '#fff', fontFamily: 'system-ui, sans-serif' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: '#fff', fontFamily: 'system-ui, sans-serif', position: 'relative' }}>
+      {/* Header */}
       <div style={{ padding: '14px 20px', borderBottom: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', gap: 10 }}>
         <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16 }}>🎓</div>
-        <div>
+        <div style={{ flex: 1 }}>
           <div style={{ fontWeight: 600, fontSize: 14, color: '#0f172a' }}>English Teacher</div>
           <div style={{ fontSize: 12, color: '#22c55e' }}>● Online</div>
         </div>
+        <button
+          onClick={() => setShowThreadList(v => !v)}
+          style={{ fontSize: 12, padding: '4px 10px', borderRadius: 8, border: '1px solid #e2e8f0', background: '#f8faff', color: '#6366f1', cursor: 'pointer', fontWeight: 600 }}
+        >
+          スレッド一覧
+        </button>
+        <button
+          onClick={() => void handleNewThread()}
+          style={{ fontSize: 12, padding: '4px 10px', borderRadius: 8, border: 'none', background: '#6366f1', color: '#fff', cursor: 'pointer', fontWeight: 600 }}
+        >
+          + 新規
+        </button>
       </div>
+
+      {/* Thread list dropdown */}
+      {showThreadList && (
+        <div style={{ position: 'absolute', top: 62, right: 12, zIndex: 100, background: '#fff', border: '1px solid #e2e8f0', borderRadius: 10, boxShadow: '0 4px 16px rgba(0,0,0,0.10)', minWidth: 220, maxHeight: 300, overflowY: 'auto' }}>
+          {threads.length === 0 ? (
+            <div style={{ padding: '14px 16px', fontSize: 13, color: '#94a3b8' }}>スレッドがありません</div>
+          ) : threads.map(t => (
+            <div
+              key={t.thread_id}
+              onClick={() => { void loadThread(t.thread_id); setShowThreadList(false) }}
+              style={{ padding: '10px 16px', fontSize: 13, color: t.thread_id === activeThreadId ? '#6366f1' : '#1e293b', background: t.thread_id === activeThreadId ? '#f8faff' : '#fff', cursor: 'pointer', borderBottom: '1px solid #f1f5f9', fontWeight: t.thread_id === activeThreadId ? 600 : 400 }}
+            >
+              {formatDate(t.created_at)}
+              {t.thread_id === activeThreadId && ' ✓'}
+            </div>
+          ))}
+        </div>
+      )}
 
       <div style={{ flex: 1, overflowY: 'auto', padding: '20px 16px', display: 'flex', flexDirection: 'column', gap: 16 }}>
         {messages.map(msg => (
@@ -191,6 +296,19 @@ export function VariantD({ onPhrasesAdded }: Props) {
         )}
         <div ref={bottomRef} />
       </div>
+
+      {/* 10-turn banner */}
+      {turnCount >= TURN_BANNER_THRESHOLD && (
+        <div style={{ padding: '8px 16px', background: '#fef9c3', borderTop: '1px solid #fde68a', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, fontSize: 13, color: '#854d0e' }}>
+          <span>そろそろ新しいスレッドを始めませんか？（{turnCount}ターン目）</span>
+          <button
+            onClick={() => void handleNewThread()}
+            style={{ fontSize: 12, padding: '3px 10px', borderRadius: 6, border: 'none', background: '#854d0e', color: '#fff', cursor: 'pointer', fontWeight: 600, flexShrink: 0 }}
+          >
+            新しいスレッド
+          </button>
+        </div>
+      )}
 
       <div style={{ padding: '12px 16px', borderTop: '1px solid #e2e8f0', display: 'flex', gap: 8, background: '#fff' }}>
         <textarea

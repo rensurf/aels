@@ -80,18 +80,18 @@ export function VariantC({ phrases, verbs }: Props) {
         ) : current ? (
           <>
             <div
-              onClick={cardState === 'front' ? () => setCardState('back') : undefined}
+              onClick={() => setCardState(s => s === 'front' ? 'back' : 'front')}
               style={{
                 width: '100%',
-                maxWidth: 480,
-                minHeight: 240,
+                maxWidth: 400,
+                minHeight: 180,
                 background: cardState === 'front' ? '#1e293b' : '#312e81',
-                borderRadius: 20,
-                padding: 32,
+                borderRadius: 16,
+                padding: '24px 20px',
                 display: 'flex',
                 flexDirection: 'column',
                 justifyContent: 'center',
-                cursor: cardState === 'front' ? 'pointer' : 'default',
+                cursor: 'pointer',
                 border: cardState === 'front' ? '1px solid #334155' : '1px solid #4338ca',
                 transition: 'background 0.3s, border 0.3s',
                 boxShadow: '0 20px 60px rgba(0,0,0,0.4)',
@@ -99,17 +99,7 @@ export function VariantC({ phrases, verbs }: Props) {
             >
               {cardState === 'front' ? (
                 <>
-                  <div style={{ fontSize: 12, color: '#64748b', marginBottom: 16, display: 'flex', gap: 8 }}>
-                    {current.pattern && (
-                      <span style={{ padding: '2px 8px', background: '#6366f111', border: '1px solid #6366f133', borderRadius: 999, color: '#818cf8' }}>
-                        {current.pattern}
-                      </span>
-                    )}
-                    <span style={{ padding: '2px 8px', background: '#0f172a', border: '1px solid #334155', borderRadius: 999 }}>
-                      {current.verbId}
-                    </span>
-                  </div>
-                  <div style={{ fontSize: 22, color: '#f1f5f9', lineHeight: 1.5, marginBottom: 24 }}>
+                  <div style={{ fontSize: 19, color: '#f1f5f9', lineHeight: 1.5, marginBottom: 20 }}>
                     {current.japanese}
                   </div>
                   <div style={{ fontSize: 13, color: '#475569', textAlign: 'center' }}>
@@ -119,7 +109,7 @@ export function VariantC({ phrases, verbs }: Props) {
               ) : (
                 <>
                   <div style={{ fontSize: 13, color: '#818cf8', marginBottom: 12 }}>English</div>
-                  <div style={{ fontSize: 20, color: '#e0e7ff', lineHeight: 1.6, marginBottom: 16 }}>
+                  <div style={{ fontSize: 17, color: '#e0e7ff', lineHeight: 1.6, marginBottom: 14 }}>
                     {current.text}
                   </div>
                   {current.note && (
@@ -127,18 +117,21 @@ export function VariantC({ phrases, verbs }: Props) {
                       {current.note}
                     </div>
                   )}
+                  <div style={{ fontSize: 12, color: '#334155', textAlign: 'center', marginTop: 20 }}>
+                    タップして問題に戻る ←
+                  </div>
                 </>
               )}
             </div>
 
             {cardState === 'back' && (
               <div style={{ display: 'flex', gap: 12, marginTop: 24, width: '100%', maxWidth: 480 }}>
-                <button onClick={() => handleResult(false)} style={{
+                <button onClick={e => { e.stopPropagation(); handleResult(false) }} style={{
                   flex: 1, padding: 16, borderRadius: 12,
                   background: '#7f1d1d22', border: '1px solid #7f1d1d66',
                   color: '#fca5a5', fontSize: 16, fontWeight: 600, cursor: 'pointer',
                 }}>✗ もう一度</button>
-                <button onClick={() => handleResult(true)} style={{
+                <button onClick={e => { e.stopPropagation(); handleResult(true) }} style={{
                   flex: 1, padding: 16, borderRadius: 12,
                   background: '#14532d22', border: '1px solid #14532d66',
                   color: '#86efac', fontSize: 16, fontWeight: 600, cursor: 'pointer',
