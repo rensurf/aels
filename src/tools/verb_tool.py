@@ -76,7 +76,7 @@ def generate_verb_patterns(base: str) -> dict:
         {"role": "system", "content": _SYSTEM},
         {"role": "user", "content": f"Verb: {base}"},
     ]
-    raw = chat(messages, json_mode=True, max_tokens=1200, provider="openai")
+    raw = chat(messages, json_mode=True, max_tokens=1200, provider="openai", model_tier="reasoning")
     data = json.loads(raw)
     verb: dict = {
         "verb_id": base.lower(),

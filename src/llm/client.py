@@ -5,7 +5,7 @@ import requests
 from openai import OpenAI
 
 _MODELS: dict[str, dict[str, str]] = {
-    "openai": {"main": "gpt-4o", "light": "gpt-4o-mini"},
+    "openai": {"main": "gpt-4o", "light": "gpt-4o-mini", "reasoning": "o4-mini"},
     "claude": {"main": "claude-sonnet-4-6", "light": "claude-haiku-4-5-20251001"},
 }
 
@@ -45,12 +45,18 @@ def _chat_openai(
     max_tokens: int,
 ) -> str:
     client = OpenAI()
+    model = _MODELS["openai"][model_tier]
+    is_reasoning = model.startswith("o")
     kwargs: dict = {
-        "model": _MODELS["openai"][model_tier],
+        "model": model,
         "messages": messages,
-        "max_tokens": max_tokens,
-        "temperature": 0,
     }
+    if is_reasoning:
+        kwargs["max_completion_tokens"] = max_tokens * 4  # reasoning uses extra tokens internally
+        kwargs["reasoning_effort"] = "low"
+    else:
+        kwargs["max_tokens"] = max_tokens
+        kwargs["temperature"] = 0
     if json_mode:
         kwargs["response_format"] = {"type": "json_object"}
     resp = client.chat.completions.create(**kwargs)
