@@ -35,6 +35,12 @@ resource "aws_apigatewayv2_route" "post_phrases" {
   target    = "integrations/${aws_apigatewayv2_integration.lambda.id}"
 }
 
+resource "aws_apigatewayv2_route" "put_phrase" {
+  api_id    = aws_apigatewayv2_api.aels.id
+  route_key = "PUT /phrases/{phrase_id}"
+  target    = "integrations/${aws_apigatewayv2_integration.lambda.id}"
+}
+
 resource "aws_apigatewayv2_route" "post_chat" {
   api_id    = aws_apigatewayv2_api.aels.id
   route_key = "POST /chat"
@@ -68,6 +74,30 @@ resource "aws_apigatewayv2_route" "put_verb" {
 resource "aws_apigatewayv2_route" "delete_verb" {
   api_id    = aws_apigatewayv2_api.aels.id
   route_key = "DELETE /verbs/{verb_id}"
+  target    = "integrations/${aws_apigatewayv2_integration.lambda.id}"
+}
+
+resource "aws_apigatewayv2_route" "post_analyze" {
+  api_id    = aws_apigatewayv2_api.aels.id
+  route_key = "POST /analyze"
+  target    = "integrations/${aws_apigatewayv2_integration.lambda.id}"
+}
+
+resource "aws_apigatewayv2_route" "post_threads" {
+  api_id    = aws_apigatewayv2_api.aels.id
+  route_key = "POST /threads"
+  target    = "integrations/${aws_apigatewayv2_integration.lambda.id}"
+}
+
+resource "aws_apigatewayv2_route" "get_threads" {
+  api_id    = aws_apigatewayv2_api.aels.id
+  route_key = "GET /threads"
+  target    = "integrations/${aws_apigatewayv2_integration.lambda.id}"
+}
+
+resource "aws_apigatewayv2_route" "get_thread" {
+  api_id    = aws_apigatewayv2_api.aels.id
+  route_key = "GET /threads/{thread_id}"
   target    = "integrations/${aws_apigatewayv2_integration.lambda.id}"
 }
 

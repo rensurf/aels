@@ -4,7 +4,8 @@ import boto3
 from decimal import Decimal
 from src.config import (
     DYNAMODB_SESSION_TABLE, TELEGRAM_BOT_TOKEN, SQS_WORKER_QUEUE_URL,
-    DYNAMODB_PHRASES_TABLE, DYNAMODB_VERBS_TABLE, WEB_API_KEY, WEB_USER_ID,
+    DYNAMODB_PHRASES_TABLE, DYNAMODB_VERBS_TABLE, DYNAMODB_THREADS_TABLE,
+    WEB_API_KEY, WEB_USER_ID,
     COSMOS_ENDPOINT, COSMOS_KEY, COSMOS_DATABASE, COSMOS_GRAPH,
 )
 from src.session.client import SessionClient
@@ -15,12 +16,15 @@ from src.graph.client import GremlinClient
 from src.graph import queries as graph_queries
 from src.db.phrases import PhrasesClient
 from src.db.verbs import VerbsClient
+from src.db.threads import ThreadsClient
 from src.tools.verb_tool import generate_verb_patterns
 from src.tools.chat_tool import chat_with_teacher
+from src.tools.analyze_tool import analyze_phrase
 
 session_client = SessionClient(table_name=DYNAMODB_SESSION_TABLE)
 phrases_client = PhrasesClient(table_name=DYNAMODB_PHRASES_TABLE)
 verbs_client = VerbsClient(table_name=DYNAMODB_VERBS_TABLE)
+threads_client = ThreadsClient(table_name=DYNAMODB_THREADS_TABLE)
 sqs = boto3.client("sqs", region_name="ap-southeast-2")
 _graph = GremlinClient(
     endpoint=COSMOS_ENDPOINT,
@@ -302,6 +306,23 @@ def _handle_put_verb(event: dict) -> dict:
         return _json_response(500, {"error": str(e)})
 
 
+def _handle_put_phrase(event: dict) -> dict:
+    if not _authorized(event):
+        return _json_response(401, {"error": "Unauthorized"})
+    if not WEB_USER_ID:
+        return _json_response(503, {"error": "WEB_USER_ID not configured"})
+    try:
+        phrase_id = (event.get("pathParameters") or {}).get("phrase_id", "")
+        body = json.loads(event.get("body") or "{}")
+        updated = phrases_client.update_phrase(user_id=WEB_USER_ID, phrase_id=phrase_id, updates=body)
+        if updated is None:
+            return _json_response(400, {"error": "No updatable fields provided"})
+        return _json_response(200, updated)
+    except Exception as e:
+        print(f"[PUT /phrases] error: {e}")
+        return _json_response(500, {"error": str(e)})
+
+
 def _handle_post_phrase(event: dict) -> dict:
     if not _authorized(event):
         return _json_response(401, {"error": "Unauthorized"})
@@ -321,15 +342,96 @@ def _handle_post_phrase(event: dict) -> dict:
 def _handle_post_chat(event: dict) -> dict:
     if not _authorized(event):
         return _json_response(401, {"error": "Unauthorized"})
+    if not WEB_USER_ID:
+        return _json_response(503, {"error": "WEB_USER_ID not configured"})
     try:
         body = json.loads(event.get("body") or "{}")
         text = body.get("text", "").strip()
         if not text:
             return _json_response(400, {"error": "text is required"})
-        result = chat_with_teacher(text)
+        thread_id = body.get("thread_id", "").strip()
+        history: list[dict] = []
+        if thread_id:
+            thread = threads_client.get_thread(user_id=WEB_USER_ID, thread_id=thread_id)
+            if thread:
+                history = list(thread.get("messages", []))
+        result = chat_with_teacher(text, history=history)
+        if thread_id:
+            threads_client.append_messages(
+                user_id=WEB_USER_ID,
+                thread_id=thread_id,
+                new_messages=[
+                    {"role": "user", "content": text},
+                    {"role": "assistant", "content": result["message"]},
+                ],
+            )
         return _json_response(200, result)
     except Exception as e:
         print(f"[POST /chat] error: {e}")
+        return _json_response(500, {"error": str(e)})
+
+
+def _handle_post_analyze(event: dict) -> dict:
+    if not _authorized(event):
+        return _json_response(401, {"error": "Unauthorized"})
+    try:
+        body = json.loads(event.get("body") or "{}")
+        text = body.get("text", "").strip()
+        if not text:
+            return _json_response(400, {"error": "text is required"})
+        result = analyze_phrase(text)
+        return _json_response(200, result)
+    except Exception as e:
+        print(f"[POST /analyze] error: {e}")
+        return _json_response(500, {"error": str(e)})
+
+
+def _handle_post_threads(event: dict) -> dict:
+    if not _authorized(event):
+        return _json_response(401, {"error": "Unauthorized"})
+    if not WEB_USER_ID:
+        return _json_response(503, {"error": "WEB_USER_ID not configured"})
+    try:
+        thread = threads_client.create_thread(user_id=WEB_USER_ID)
+        return _json_response(201, thread)
+    except Exception as e:
+        print(f"[POST /threads] error: {e}")
+        return _json_response(500, {"error": str(e)})
+
+
+def _handle_get_threads(event: dict) -> dict:
+    if not _authorized(event):
+        return _json_response(401, {"error": "Unauthorized"})
+    if not WEB_USER_ID:
+        return _json_response(503, {"error": "WEB_USER_ID not configured"})
+    try:
+        items = threads_client.list_threads(user_id=WEB_USER_ID)
+        return _json_response(200, {"items": [
+            {"thread_id": t["thread_id"], "created_at": t["created_at"]}
+            for t in items
+        ]})
+    except Exception as e:
+        print(f"[GET /threads] error: {e}")
+        return _json_response(500, {"error": str(e)})
+
+
+def _handle_get_thread(event: dict) -> dict:
+    if not _authorized(event):
+        return _json_response(401, {"error": "Unauthorized"})
+    if not WEB_USER_ID:
+        return _json_response(503, {"error": "WEB_USER_ID not configured"})
+    try:
+        thread_id = (event.get("pathParameters") or {}).get("thread_id", "")
+        thread = threads_client.get_thread(user_id=WEB_USER_ID, thread_id=thread_id)
+        if thread is None:
+            return _json_response(404, {"error": "Not found"})
+        return _json_response(200, {
+            "thread_id": thread["thread_id"],
+            "created_at": thread["created_at"],
+            "messages": list(thread.get("messages", [])),
+        })
+    except Exception as e:
+        print(f"[GET /threads/{'{thread_id}'}] error: {e}")
         return _json_response(500, {"error": str(e)})
 
 
@@ -351,6 +453,8 @@ def lambda_handler(event, context):
         return _handle_get_phrases(event)
     if route_key == "POST /phrases":
         return _handle_post_phrase(event)
+    if route_key == "PUT /phrases/{phrase_id}":
+        return _handle_put_phrase(event)
     if route_key == "POST /chat":
         return _handle_post_chat(event)
     if route_key == "GET /verbs":
@@ -363,6 +467,14 @@ def lambda_handler(event, context):
         return _handle_put_verb(event)
     if route_key == "DELETE /verbs/{verb_id}":
         return _handle_delete_verb(event)
+    if route_key == "POST /analyze":
+        return _handle_post_analyze(event)
+    if route_key == "POST /threads":
+        return _handle_post_threads(event)
+    if route_key == "GET /threads":
+        return _handle_get_threads(event)
+    if route_key == "GET /threads/{thread_id}":
+        return _handle_get_thread(event)
 
     body = json.loads(event["body"])
 

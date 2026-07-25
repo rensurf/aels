@@ -58,6 +58,8 @@ resource "aws_iam_role_policy" "lambda_dynamodb" {
         "arn:aws:dynamodb:ap-southeast-2:${data.aws_caller_identity.current.account_id}:table/aels-phrases",
         "arn:aws:dynamodb:ap-southeast-2:${data.aws_caller_identity.current.account_id}:table/aels-phrases/index/*",
         "arn:aws:dynamodb:ap-southeast-2:${data.aws_caller_identity.current.account_id}:table/aels-verbs",
+        "arn:aws:dynamodb:ap-southeast-2:${data.aws_caller_identity.current.account_id}:table/aels-chat-threads",
+        "arn:aws:dynamodb:ap-southeast-2:${data.aws_caller_identity.current.account_id}:table/aels-chat-threads/index/*",
       ]
     }]
   })

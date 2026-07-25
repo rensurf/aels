@@ -83,3 +83,32 @@ resource "aws_dynamodb_table" "verbs" {
     type = "S"
   }
 }
+
+resource "aws_dynamodb_table" "chat_threads" {
+  name         = "aels-chat-threads"
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "user_id"
+  range_key    = "thread_id"
+
+  attribute {
+    name = "user_id"
+    type = "S"
+  }
+
+  attribute {
+    name = "thread_id"
+    type = "S"
+  }
+
+  attribute {
+    name = "created_at"
+    type = "S"
+  }
+
+  global_secondary_index {
+    name            = "user_id-created_at-index"
+    hash_key        = "user_id"
+    range_key       = "created_at"
+    projection_type = "ALL"
+  }
+}

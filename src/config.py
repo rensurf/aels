@@ -20,5 +20,6 @@ SQS_WORKER_QUEUE_URL = _require("SQS_WORKER_QUEUE_URL")
 
 DYNAMODB_PHRASES_TABLE = os.getenv("DYNAMODB_PHRASES_TABLE", "aels-phrases")
 DYNAMODB_VERBS_TABLE = os.getenv("DYNAMODB_VERBS_TABLE", "aels-verbs")
+DYNAMODB_THREADS_TABLE = os.getenv("DYNAMODB_THREADS_TABLE", "aels-chat-threads")
 WEB_API_KEY = os.getenv("WEB_API_KEY")
 WEB_USER_ID = os.getenv("WEB_USER_ID")

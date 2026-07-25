@@ -258,11 +258,12 @@ _FEW_SHOT: list[dict] = [
 ]
 
 
-def chat_with_teacher(text: str) -> dict:
+def chat_with_teacher(text: str, history: list[dict] | None = None) -> dict:
     """Call LLM to generate a teacher response with proposed phrases."""
     messages = [
         {"role": "system", "content": _SYSTEM},
         *_FEW_SHOT,
+        *(history or []),
         {"role": "user", "content": text},
     ]
     raw = chat(messages, json_mode=True, max_tokens=1200, provider="openai")
