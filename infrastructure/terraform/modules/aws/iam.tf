@@ -49,9 +49,16 @@ resource "aws_iam_role_policy" "lambda_dynamodb" {
         "dynamodb:GetItem",
         "dynamodb:PutItem",
         "dynamodb:DeleteItem",
-        "dynamodb:UpdateItem"
+        "dynamodb:UpdateItem",
+        "dynamodb:Query",
+        "dynamodb:Scan",
       ]
-      Resource = "arn:aws:dynamodb:ap-southeast-2:${data.aws_caller_identity.current.account_id}:table/aels-sessions"
+      Resource = [
+        "arn:aws:dynamodb:ap-southeast-2:${data.aws_caller_identity.current.account_id}:table/aels-sessions",
+        "arn:aws:dynamodb:ap-southeast-2:${data.aws_caller_identity.current.account_id}:table/aels-phrases",
+        "arn:aws:dynamodb:ap-southeast-2:${data.aws_caller_identity.current.account_id}:table/aels-phrases/index/*",
+        "arn:aws:dynamodb:ap-southeast-2:${data.aws_caller_identity.current.account_id}:table/aels-verbs",
+      ]
     }]
   })
 }

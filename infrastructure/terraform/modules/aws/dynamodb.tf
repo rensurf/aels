@@ -13,3 +13,73 @@ resource "aws_dynamodb_table" "sessions" {
     enabled        = true
   }
 }
+
+resource "aws_dynamodb_table" "phrases" {
+  name         = "aels-phrases"
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "user_id"
+  range_key    = "phrase_id"
+
+  attribute {
+    name = "user_id"
+    type = "S"
+  }
+
+  attribute {
+    name = "phrase_id"
+    type = "S"
+  }
+
+  attribute {
+    name = "due_date"
+    type = "S"
+  }
+
+  attribute {
+    name = "verb_id"
+    type = "S"
+  }
+
+  attribute {
+    name = "pattern"
+    type = "S"
+  }
+
+  global_secondary_index {
+    name            = "user_id-due_date-index"
+    hash_key        = "user_id"
+    range_key       = "due_date"
+    projection_type = "ALL"
+  }
+
+  global_secondary_index {
+    name            = "user_id-verb_id-index"
+    hash_key        = "user_id"
+    range_key       = "verb_id"
+    projection_type = "ALL"
+  }
+
+  global_secondary_index {
+    name            = "user_id-pattern-index"
+    hash_key        = "user_id"
+    range_key       = "pattern"
+    projection_type = "ALL"
+  }
+}
+
+resource "aws_dynamodb_table" "verbs" {
+  name         = "aels-verbs"
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "user_id"
+  range_key    = "verb_id"
+
+  attribute {
+    name = "user_id"
+    type = "S"
+  }
+
+  attribute {
+    name = "verb_id"
+    type = "S"
+  }
+}
