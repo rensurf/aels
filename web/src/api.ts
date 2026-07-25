@@ -194,6 +194,37 @@ export async function analyzePhrase(text: string): Promise<AnalyzeResponse> {
   return resp.json() as Promise<AnalyzeResponse>
 }
 
+export interface ReviewResponse {
+  phrase: Phrase
+  remaining_due: number
+  streak: number
+  streak_updated: boolean
+}
+
+export async function reviewPhrase(phraseId: string, quality: number): Promise<ReviewResponse> {
+  const resp = await fetch(`${API_BASE}/phrases/${phraseId}/review`, {
+    method: 'POST',
+    headers: { ...headers, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ quality }),
+  })
+  if (!resp.ok) throw new Error(`Review failed: ${resp.status}`)
+  const raw = await resp.json() as { phrase: Record<string, unknown>; remaining_due: number; streak: number; streak_updated: boolean }
+  return { ...raw, phrase: mapPhrase(raw.phrase) }
+}
+
+export interface Stats {
+  current_streak: number
+  best_streak: number
+  last_completed_date: string | null
+  completed_dates: string[]
+}
+
+export async function fetchStats(): Promise<Stats> {
+  const resp = await fetch(`${API_BASE}/stats`, { headers })
+  if (!resp.ok) throw new Error(`Fetch stats failed: ${resp.status}`)
+  return resp.json() as Promise<Stats>
+}
+
 export async function updateVerb(verb: Verb): Promise<Verb> {
   const body: Record<string, unknown> = {
     base: verb.base,

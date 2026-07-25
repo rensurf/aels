@@ -101,6 +101,18 @@ resource "aws_apigatewayv2_route" "get_thread" {
   target    = "integrations/${aws_apigatewayv2_integration.lambda.id}"
 }
 
+resource "aws_apigatewayv2_route" "post_phrase_review" {
+  api_id    = aws_apigatewayv2_api.aels.id
+  route_key = "POST /phrases/{phrase_id}/review"
+  target    = "integrations/${aws_apigatewayv2_integration.lambda.id}"
+}
+
+resource "aws_apigatewayv2_route" "get_stats" {
+  api_id    = aws_apigatewayv2_api.aels.id
+  route_key = "GET /stats"
+  target    = "integrations/${aws_apigatewayv2_integration.lambda.id}"
+}
+
 resource "aws_apigatewayv2_stage" "default" {
   api_id      = aws_apigatewayv2_api.aels.id
   name        = "$default"

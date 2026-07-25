@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { fetchPhrases, fetchVerbs } from './api'
+import { fetchPhrases, fetchVerbs, fetchStats } from './api'
 import type { Phrase, Verb } from './types'
 import { VariantA } from './variants/VariantA'
 import { VariantB } from './variants/VariantB'
@@ -13,14 +13,18 @@ export default function App() {
   const [view, setView] = useState<View>('B')
   const [phrases, setPhrases] = useState<Phrase[]>([])
   const [verbs, setVerbs] = useState<Verb[]>([])
+  const [streak, setStreak] = useState(0)
+  const [completedDates, setCompletedDates] = useState<string[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    Promise.all([fetchPhrases(), fetchVerbs()])
-      .then(([p, v]) => {
+    Promise.all([fetchPhrases(), fetchVerbs(), fetchStats()])
+      .then(([p, v, s]) => {
         setPhrases(p)
         setVerbs(v)
+        setStreak(s.current_streak)
+        setCompletedDates(s.completed_dates)
       })
       .catch((e: unknown) => setError(String(e)))
       .finally(() => setLoading(false))
@@ -32,6 +36,11 @@ export default function App() {
 
   const handlePhraseUpdated = useCallback((updated: Phrase) => {
     setPhrases(prev => prev.map(p => p.id === updated.id ? updated : p))
+  }, [])
+
+  const handleStreakUpdated = useCallback((newStreak: number, newDates: string[]) => {
+    setStreak(newStreak)
+    setCompletedDates(newDates)
   }, [])
 
   const handleVerbAdded = useCallback((verb: Verb) => {
@@ -66,7 +75,7 @@ export default function App() {
     <>
       {view === 'A' && <VariantA verbs={verbs} phrases={phrases} onVerbAdded={handleVerbAdded} onVerbUpdated={handleVerbUpdated} onVerbDeleted={handleVerbDeleted} />}
       {view === 'B' && <VariantB verbs={verbs} phrases={phrases} onPhrasesAdded={handlePhrasesAdded} onPhraseUpdated={handlePhraseUpdated} />}
-      {view === 'C' && <VariantC phrases={phrases} verbs={verbs} />}
+      {view === 'C' && <VariantC phrases={phrases} verbs={verbs} streak={streak} completedDates={completedDates} onPhraseReviewed={handlePhraseUpdated} onStreakUpdated={handleStreakUpdated} />}
       {view === 'D' && <VariantD onPhrasesAdded={handlePhrasesAdded} />}
       <NavBar current={view} onChange={k => setView(k as View)} />
     </>

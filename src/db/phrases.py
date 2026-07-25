@@ -1,5 +1,5 @@
 import uuid
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from decimal import Decimal
 
 import boto3
@@ -53,7 +53,7 @@ class PhrasesClient:
             "ease_factor": Decimal("2.5"),
             "interval": 0,
             "repetitions": 0,
-            "due_date": date.today().isoformat(),
+            "due_date": (date.today() + timedelta(days=1)).isoformat(),
             "created_at": datetime.utcnow().isoformat(),
         }
         # GSI keys cannot be empty strings in DynamoDB
@@ -65,6 +65,54 @@ class PhrasesClient:
             item["examples"] = phrase["examples"]
         self.table.put_item(Item=item)
         return _normalize(item)
+
+    def get_due_count(self, user_id: str, due_before: str) -> int:
+        resp = self.table.query(
+            IndexName="user_id-due_date-index",
+            KeyConditionExpression=Key("user_id").eq(user_id) & Key("due_date").lte(due_before),
+            Select="COUNT",
+        )
+        return resp.get("Count", 0)
+
+    def update_sm2(self, user_id: str, phrase_id: str, quality: int) -> dict:
+        resp = self.table.get_item(Key={"user_id": user_id, "phrase_id": phrase_id})
+        item = resp.get("Item")
+        if not item:
+            raise ValueError(f"Phrase {phrase_id} not found")
+
+        ef = item.get("ease_factor", Decimal("2.5"))
+        interval = int(item.get("interval", 0))
+        reps = int(item.get("repetitions", 0))
+
+        if quality < 3:
+            interval = 0
+            reps = 0
+        else:
+            if reps == 0:
+                interval = 1
+            elif reps == 1:
+                interval = 6
+            else:
+                interval = round(interval * float(ef))
+            reps += 1
+
+        new_ef = float(ef) + (0.1 - (5 - quality) * (0.08 + (5 - quality) * 0.02))
+        new_ef = max(1.3, new_ef)
+        due_date = (date.today() + timedelta(days=interval)).isoformat()
+
+        result = self.table.update_item(
+            Key={"user_id": user_id, "phrase_id": phrase_id},
+            UpdateExpression="SET ease_factor = :ef, #interval = :iv, repetitions = :rp, due_date = :dd",
+            ExpressionAttributeNames={"#interval": "interval"},
+            ExpressionAttributeValues={
+                ":ef": Decimal(str(round(new_ef, 2))),
+                ":iv": interval,
+                ":rp": reps,
+                ":dd": due_date,
+            },
+            ReturnValues="ALL_NEW",
+        )
+        return _normalize(result["Attributes"])
 
     def update_phrase(self, user_id: str, phrase_id: str, updates: dict) -> dict | None:
         set_parts: list[str] = []

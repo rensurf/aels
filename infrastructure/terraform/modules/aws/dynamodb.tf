@@ -84,6 +84,17 @@ resource "aws_dynamodb_table" "verbs" {
   }
 }
 
+resource "aws_dynamodb_table" "user_stats" {
+  name         = "aels-user-stats"
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "user_id"
+
+  attribute {
+    name = "user_id"
+    type = "S"
+  }
+}
+
 resource "aws_dynamodb_table" "chat_threads" {
   name         = "aels-chat-threads"
   billing_mode = "PAY_PER_REQUEST"

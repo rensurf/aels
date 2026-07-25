@@ -4,7 +4,7 @@ import boto3
 from decimal import Decimal
 from src.config import (
     DYNAMODB_SESSION_TABLE, TELEGRAM_BOT_TOKEN, SQS_WORKER_QUEUE_URL,
-    DYNAMODB_PHRASES_TABLE, DYNAMODB_VERBS_TABLE, DYNAMODB_THREADS_TABLE,
+    DYNAMODB_PHRASES_TABLE, DYNAMODB_VERBS_TABLE, DYNAMODB_THREADS_TABLE, DYNAMODB_STATS_TABLE,
     WEB_API_KEY, WEB_USER_ID,
     COSMOS_ENDPOINT, COSMOS_KEY, COSMOS_DATABASE, COSMOS_GRAPH,
 )
@@ -17,6 +17,7 @@ from src.graph import queries as graph_queries
 from src.db.phrases import PhrasesClient
 from src.db.verbs import VerbsClient
 from src.db.threads import ThreadsClient
+from src.db.stats import StatsClient
 from src.tools.verb_tool import generate_verb_patterns
 from src.tools.chat_tool import chat_with_teacher
 from src.tools.analyze_tool import analyze_phrase
@@ -25,6 +26,7 @@ session_client = SessionClient(table_name=DYNAMODB_SESSION_TABLE)
 phrases_client = PhrasesClient(table_name=DYNAMODB_PHRASES_TABLE)
 verbs_client = VerbsClient(table_name=DYNAMODB_VERBS_TABLE)
 threads_client = ThreadsClient(table_name=DYNAMODB_THREADS_TABLE)
+stats_client = StatsClient(table_name=DYNAMODB_STATS_TABLE)
 sqs = boto3.client("sqs", region_name="ap-southeast-2")
 _graph = GremlinClient(
     endpoint=COSMOS_ENDPOINT,
@@ -435,6 +437,53 @@ def _handle_get_thread(event: dict) -> dict:
         return _json_response(500, {"error": str(e)})
 
 
+def _handle_post_phrase_review(event: dict) -> dict:
+    if not _authorized(event):
+        return _json_response(401, {"error": "Unauthorized"})
+    if not WEB_USER_ID:
+        return _json_response(503, {"error": "WEB_USER_ID not configured"})
+    try:
+        phrase_id = (event.get("pathParameters") or {}).get("phrase_id", "")
+        body = json.loads(event.get("body") or "{}")
+        quality = int(body.get("quality", 0))
+        if not 0 <= quality <= 5:
+            return _json_response(400, {"error": "quality must be 0-5"})
+
+        updated = phrases_client.update_sm2(user_id=WEB_USER_ID, phrase_id=phrase_id, quality=quality)
+
+        from datetime import date as _date
+        today = _date.today().isoformat()
+        remaining = phrases_client.get_due_count(user_id=WEB_USER_ID, due_before=today)
+        if remaining == 0:
+            stats = stats_client.try_complete_day(user_id=WEB_USER_ID)
+            streak_updated = True
+        else:
+            stats = stats_client.get_stats(user_id=WEB_USER_ID)
+            streak_updated = False
+
+        return _json_response(200, {
+            "phrase": updated,
+            "remaining_due": remaining,
+            "streak": stats["current_streak"],
+            "streak_updated": streak_updated,
+        })
+    except Exception as e:
+        print(f"[POST /phrases/review] error: {e}")
+        return _json_response(500, {"error": str(e)})
+
+
+def _handle_get_stats(event: dict) -> dict:
+    if not _authorized(event):
+        return _json_response(401, {"error": "Unauthorized"})
+    if not WEB_USER_ID:
+        return _json_response(503, {"error": "WEB_USER_ID not configured"})
+    try:
+        return _json_response(200, stats_client.get_stats(user_id=WEB_USER_ID))
+    except Exception as e:
+        print(f"[GET /stats] error: {e}")
+        return _json_response(500, {"error": str(e)})
+
+
 def _handle_get_verb(event: dict) -> dict:
     if not _authorized(event):
         return _json_response(401, {"error": "Unauthorized"})
@@ -455,6 +504,8 @@ def lambda_handler(event, context):
         return _handle_post_phrase(event)
     if route_key == "PUT /phrases/{phrase_id}":
         return _handle_put_phrase(event)
+    if route_key == "POST /phrases/{phrase_id}/review":
+        return _handle_post_phrase_review(event)
     if route_key == "POST /chat":
         return _handle_post_chat(event)
     if route_key == "GET /verbs":
@@ -475,6 +526,8 @@ def lambda_handler(event, context):
         return _handle_get_threads(event)
     if route_key == "GET /threads/{thread_id}":
         return _handle_get_thread(event)
+    if route_key == "GET /stats":
+        return _handle_get_stats(event)
 
     body = json.loads(event["body"])
 
