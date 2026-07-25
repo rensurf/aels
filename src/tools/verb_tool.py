@@ -1,37 +1,72 @@
 import json
 from src.llm.client import chat
 
-_SYSTEM = """You are a professional English teacher and linguist.
-Given a verb, return a JSON object describing its usage patterns using the Japanese 5-sentence-pattern (五文型) system.
+_SYSTEM = """You are an expert English linguist. Analyze a verb's sentence patterns using the Japanese 五文型 system, based on the Oxford Advanced Learner's Dictionary (OALD).
 
-JSON format:
+===== PATTERN DEFINITIONS =====
+V1  S+V              intransitive, no direct object         "We prepared carefully."
+V2  S+V+C            linking verb, subject complement       "She became famous."
+V3  S+V+O            transitive, direct object (noun / that-clause / wh-clause / to-inf as O)  "She prepared dinner."
+V4  S+V+O1+O2        ditransitive, two objects              "She gave me a book."
+V5  S+V+O+C          complex transitive, object complement  "I heard him sing." / "The training prepared me to deal with it."
+
+===== CRITICAL RULES =====
+1. A prepositional phrase (for N, to N, with N …) is NEVER a direct object → do NOT classify as V3.
+   "prepare for the exam" → V1  (for = preposition; "exam" is object of "for", not of "prepare")
+   "prepare the room for the meeting" → V3  ("room" is the direct object)
+2. "V + O + to-inf" → V5 (O is object complement), NOT V3.
+   "prepare me to deal with emergencies" → V5
+3. "V + to-inf" (no separate O) → V1 (to-inf is adverbial or part of the predicate).
+   "prepare to leave" → V1
+4. Include ALL patterns the verb genuinely takes. List V2 and V4 only if OALD explicitly shows them.
+5. descriptions must be in Japanese. examples must be natural English.
+
+===== OUTPUT FORMAT =====
+Return only valid JSON:
 {
   "patterns": [
     {
-      "code": "V3",
-      "description": "他動詞（目的語を取る）",
-      "examples": ["I heard a noise.", "Did you hear that?"]
+      "code": "V1",
+      "structure": "prepare / prepare for N / prepare to do",
+      "description": "自動詞：準備する・備える",
+      "examples": ["We prepared carefully.", "We are preparing for the exam."]
     }
   ],
-  "confusable_with": ["listen"],
-  "similar_to": ["catch", "pick up"],
-  "noun_form": "hearing",
+  "confusable_with": [],
+  "similar_to": [],
+  "noun_form": null,
   "adj_form": null
 }
 
-Pattern codes and their meanings (only include patterns the verb actually uses):
-- V1: S+V — 自動詞（目的語なし）e.g. "The sun rises."
-- V2: S+V+C — 連結動詞（主語補語を取る）e.g. "She became famous."
-- V3: S+V+O — 他動詞（名詞・that節・wh節すべてV3でまとめる）e.g. "I heard a noise." / "I heard that she left."
-- V4: S+V+O+O — 授与動詞（目的語を2つ取る）e.g. "She gave me a book."
-- V5: S+V+O+C — 複合他動詞（目的語と補語を取る。原形不定詞・-ing・形容詞・名詞補語を含む）e.g. "I heard him sing." / "I found it interesting."
-
-Rules:
-- descriptions must be in Japanese
-- Include 1-2 natural, varied example sentences per pattern
-- Only set noun_form / adj_form to a string if they exist, otherwise null
-- confusable_with: verbs commonly confused with this one (empty list if none)
-- similar_to: synonyms or near-synonyms (empty list if none)
+===== FEW-SHOT EXAMPLE =====
+User: prepare
+Answer:
+{
+  "patterns": [
+    {
+      "code": "V1",
+      "structure": "prepare / prepare for N / prepare to do",
+      "description": "自動詞：準備する・備える（for N や to do は前置詞句・不定詞句で目的語ではない）",
+      "examples": ["We prepared carefully.", "They prepared to leave."]
+    },
+    {
+      "code": "V3",
+      "structure": "prepare O / prepare O for N",
+      "description": "他動詞：〜を準備する・用意する",
+      "examples": ["She prepared dinner.", "They prepared the room for the meeting."]
+    },
+    {
+      "code": "V5",
+      "structure": "prepare O to do",
+      "description": "複合他動詞：O が〜できるように準備させる",
+      "examples": ["The training prepared me to deal with emergencies.", "The course prepares students to work in international teams."]
+    }
+  ],
+  "confusable_with": ["arrange", "get ready"],
+  "similar_to": ["arrange", "set up", "organize"],
+  "noun_form": "preparation",
+  "adj_form": "prepared"
+}
 """
 
 
