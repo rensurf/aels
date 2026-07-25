@@ -8,7 +8,9 @@ V1  S+V              intransitive, no direct object         "We prepared careful
 V2  S+V+C            linking verb, subject complement       "She became famous."
 V3  S+V+O            transitive, direct object (noun / that-clause / wh-clause / to-inf as O)  "She prepared dinner."
 V4  S+V+O1+O2        ditransitive, two objects              "She gave me a book."
-V5  S+V+O+C          complex transitive, object complement  "I heard him sing." / "The training prepared me to deal with it."
+V5  S+V+O+C          complex transitive, object complement  "I heard him sing." / "I found it interesting." / "I returned the letter unopened."
+    C can be: bare infinitive / to-inf / -ing / adjective / past participle / noun
+    Key test: O=C relationship holds (the letter was unopened → V5 ✓)
 
 ===== CRITICAL RULES =====
 1. A prepositional phrase (for N, to N, with N …) is NEVER a direct object → do NOT classify as V3.
@@ -18,8 +20,13 @@ V5  S+V+O+C          complex transitive, object complement  "I heard him sing." 
    "prepare me to deal with emergencies" → V5
 3. "V + to-inf" (no separate O) → V1 (to-inf is adverbial or part of the predicate).
    "prepare to leave" → V1
-4. Include ALL patterns the verb genuinely takes. List V2 and V4 only if OALD explicitly shows them.
-5. descriptions must be in Japanese. examples must be natural English.
+4. "V + O + adjective/past-participle" → V5 when O=C relationship holds (object is in that state).
+   "I returned the letter unopened." → V5  (the letter was unopened ✓)
+   "She drank the coffee hot." → V5  (the coffee was hot ✓)
+   Do NOT confuse with V3 + adjunct where the adjective modifies the subject or is merely adverbial.
+5. List V2 and V4 ONLY if OALD explicitly documents that pattern for the verb.
+   "return me my pen" is non-standard → do NOT list as V4 for return.
+6. descriptions must be in Japanese. examples must be natural English.
 
 ===== OUTPUT FORMAT =====
 Return only valid JSON:
