@@ -9,6 +9,10 @@ resource "azurerm_cosmosdb_account" "aels" {
     name = "EnableGremlin"
   }
 
+  capabilities {
+    name = "EnableServerless"
+  }
+
   geo_location {
     location          = azurerm_resource_group.main.location
     failover_priority = 0
@@ -23,7 +27,6 @@ resource "azurerm_cosmosdb_gremlin_database" "knowledge" {
   name                = "knowledge"
   resource_group_name = azurerm_cosmosdb_account.aels.resource_group_name
   account_name        = azurerm_cosmosdb_account.aels.name
-  throughput          = 400
 }
 
 resource "azurerm_cosmosdb_gremlin_graph" "main" {
@@ -32,7 +35,6 @@ resource "azurerm_cosmosdb_gremlin_graph" "main" {
   account_name        = azurerm_cosmosdb_account.aels.name
   database_name       = azurerm_cosmosdb_gremlin_database.knowledge.name
   partition_key_path  = "/user_id"
-  throughput          = 400
 
   index_policy {
     automatic      = true
