@@ -365,46 +365,70 @@ VariantD の「チェックして保存」フローを実際の API に接続す
 
 ---
 
-## Step 6 設計メモ（次にやること）
+## Step 6 ✅（実装済み）
 
 ### Chat スレッド管理
 
-**方針**: ChatGPT ライクな完全実装は不要。最小構成で履歴保持を実現する。
+- `aels-chat-threads` DynamoDB テーブル（PK: user_id / SK: thread_id）
+- `POST /threads` / `GET /threads` / `GET /threads/{thread_id}` エンドポイント
+- `POST /chat` が `thread_id` を受け取り、会話履歴を DynamoDB から取得して LLM に渡す
+- VariantD にスレッドリストドロップダウン・「+ 新規」ボタン・10ターンバナー
+- `localStorage` でページリロード後も最後のスレッドを復元
 
-**DynamoDB テーブル**
-```
-aels-chat-threads
-  PK: user_id
-  SK: thread_id（UUID）
-  messages: [{role, content}]  # 会話履歴全体
-  created_at: string
-```
+---
 
-**エンドポイント**
-- `POST /threads` — 新しいスレッド作成 → `thread_id` を返す
-- `GET /threads` — スレッド一覧（created_at 降順）
-- `GET /threads/{thread_id}` — スレッドの会話履歴を取得
-- `POST /chat` — `thread_id` を受け取り、履歴を DynamoDB から読み込んで LLM に渡す → 返答後に DynamoDB に追記
+## フレーズ拡張・VariantB 改善 ✅（実装済み）
 
-**POST /chat リクエスト変更**
-```json
-{ "text": "deal withは変？", "thread_id": "uuid-..." }
-```
+### type フィールド追加
 
-**VariantD UI 変更**
-- 上部にスレッドリスト（シンプルなドロップダウンまたは小さなリスト）
-- 「+ 新しいスレッド」ボタン
-- 10ターン超えたら「そろそろ新しいスレッドを始めませんか？」バナー表示
-- ページリロードしても最後のスレッドが復元される
+フレーズに `type` を追加し、動詞文型以外の表現も管理できるようにした。
 
-**実装ファイル**
-- `infrastructure/terraform/modules/aws/dynamodb.tf` — `aels-chat-threads` テーブル追加
-- `src/db/threads.py` — 新規作成（スレッドの CRUD）
-- `src/main.py` — `POST /threads`・`GET /threads`・`GET /threads/{id}` ハンドラ追加、`POST /chat` を thread_id 対応に変更
-- `src/tools/chat_tool.py` — `history` 引数を追加
-- `infrastructure/terraform/modules/aws/api_gateway.tf` — 3ルート追加
-- `web/src/api.ts` — `createThread()`・`fetchThreads()`・`fetchThread()` 追加、`chatWithTeacher` に `thread_id` 追加
-- `web/src/variants/VariantD.tsx` — スレッドリスト UI・10ターンバナー追加
+| type | 説明 | 例 |
+|---|---|---|
+| `sentence` | V1-V5 文型フレーズ | "I haven't had it in ages." |
+| `phrasal_verb` | 句動詞 | come across, get to work |
+| `idiom` | イディオム | have to do with, be worth doing |
+| `fixed_phrase` | 固定表現・前置詞句 | in need of, on occasion |
+
+### examples フィールド追加
+
+`examples: string[]` でフレーズに例文を紐付けられるようにした。
+
+### Quick Add パネル（VariantB）
+
+- `POST /analyze` エンドポイント（`src/tools/analyze_tool.py`）
+- フレーズを貼り付けると AI が japanese / type / verb_id / note / example を補完
+- VariantB ヘッダーの「+ Quick Add」から即保存できる
+
+### インライン編集（VariantB）
+
+- `PUT /phrases/{phrase_id}` エンドポイント
+- フレーズをタップして展開 → 「編集」ボタン → 全フィールドをインライン編集・保存
+
+### DynamoDB 空文字 GSI キー問題の修正
+
+`verb_id` / `pattern` が空文字の場合は DynamoDB に保存しない（GSI キー属性に空文字不可）。
+
+---
+
+## UI 改善 ✅（実装済み）
+
+### VariantC（フラッシュカード）
+
+- カード表面のヒント（V3・動詞名タグ）を非表示
+- カードをタップすると表↔裏を行き来できるように（一方通行を解消）
+- カードサイズ縮小（maxWidth 480→400 / minHeight 240→180 / フォントサイズ縮小）
+
+### VariantA（Verb Map）サイドバー
+
+- ✕ ボタンでサイドバーを閉じられる
+- 閉じた状態で「☰ [動詞名]」ボタンを押すと再表示
+- スマホで動詞を選択すると自動的に閉じる
+
+### NavBar 最小化
+
+- 右端の薄い「✕」でナビゲーションバーを折りたたむ → 「⋯」ドットのみ表示
+- ドットをタップすると再展開
 
 ---
 
