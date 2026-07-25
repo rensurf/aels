@@ -16,6 +16,24 @@ resource "aws_apigatewayv2_route" "webhook" {
   target    = "integrations/${aws_apigatewayv2_integration.lambda.id}"
 }
 
+resource "aws_apigatewayv2_route" "get_phrases" {
+  api_id    = aws_apigatewayv2_api.aels.id
+  route_key = "GET /phrases"
+  target    = "integrations/${aws_apigatewayv2_integration.lambda.id}"
+}
+
+resource "aws_apigatewayv2_route" "get_verbs" {
+  api_id    = aws_apigatewayv2_api.aels.id
+  route_key = "GET /verbs"
+  target    = "integrations/${aws_apigatewayv2_integration.lambda.id}"
+}
+
+resource "aws_apigatewayv2_route" "get_verb" {
+  api_id    = aws_apigatewayv2_api.aels.id
+  route_key = "GET /verbs/{verb_id}"
+  target    = "integrations/${aws_apigatewayv2_integration.lambda.id}"
+}
+
 resource "aws_apigatewayv2_stage" "default" {
   api_id      = aws_apigatewayv2_api.aels.id
   name        = "$default"

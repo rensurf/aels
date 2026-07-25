@@ -2,16 +2,23 @@ import json
 import requests
 import boto3
 from decimal import Decimal
-from src.config import DYNAMODB_SESSION_TABLE, TELEGRAM_BOT_TOKEN, SQS_WORKER_QUEUE_URL
+from src.config import (
+    DYNAMODB_SESSION_TABLE, TELEGRAM_BOT_TOKEN, SQS_WORKER_QUEUE_URL,
+    DYNAMODB_PHRASES_TABLE, DYNAMODB_VERBS_TABLE, WEB_API_KEY, WEB_USER_ID,
+    COSMOS_ENDPOINT, COSMOS_KEY, COSMOS_DATABASE, COSMOS_GRAPH,
+)
 from src.session.client import SessionClient
 from src.quiz.flow import start_quiz, handle_quiz_answer, handle_quiz_give_up
 from src.quiz.intent import detect_intent
 from src.tools.memory_tool import do_save_phrases, get_recent_phrases, search_phrases, get_progress
 from src.graph.client import GremlinClient
 from src.graph import queries as graph_queries
-from src.config import COSMOS_ENDPOINT, COSMOS_KEY, COSMOS_DATABASE, COSMOS_GRAPH
+from src.db.phrases import PhrasesClient
+from src.db.verbs import VerbsClient
 
 session_client = SessionClient(table_name=DYNAMODB_SESSION_TABLE)
+phrases_client = PhrasesClient(table_name=DYNAMODB_PHRASES_TABLE)
+verbs_client = VerbsClient(table_name=DYNAMODB_VERBS_TABLE)
 sqs = boto3.client("sqs", region_name="ap-southeast-2")
 _graph = GremlinClient(
     endpoint=COSMOS_ENDPOINT,
@@ -203,7 +210,69 @@ def _handle_callback_query(body: dict) -> dict:
     return {"statusCode": 200}
 
 
+def _json_response(status: int, body: dict) -> dict:
+    return {
+        "statusCode": status,
+        "headers": {
+            "Content-Type": "application/json",
+            "Access-Control-Allow-Origin": "*",
+        },
+        "body": json.dumps(body),
+    }
+
+
+def _authorized(event: dict) -> bool:
+    if not WEB_API_KEY:
+        return False
+    headers = {k.lower(): v for k, v in (event.get("headers") or {}).items()}
+    return headers.get("x-api-key") == WEB_API_KEY
+
+
+def _handle_get_phrases(event: dict) -> dict:
+    if not _authorized(event):
+        return _json_response(401, {"error": "Unauthorized"})
+    if not WEB_USER_ID:
+        return _json_response(503, {"error": "WEB_USER_ID not configured"})
+    params = event.get("queryStringParameters") or {}
+    items = phrases_client.list_phrases(
+        user_id=WEB_USER_ID,
+        verb_id=params.get("verb_id"),
+        pattern=params.get("pattern"),
+        due_before=params.get("due_before"),
+    )
+    return _json_response(200, {"items": items})
+
+
+def _handle_get_verbs(event: dict) -> dict:
+    if not _authorized(event):
+        return _json_response(401, {"error": "Unauthorized"})
+    if not WEB_USER_ID:
+        return _json_response(503, {"error": "WEB_USER_ID not configured"})
+    items = verbs_client.list_verbs(user_id=WEB_USER_ID)
+    return _json_response(200, {"items": items})
+
+
+def _handle_get_verb(event: dict) -> dict:
+    if not _authorized(event):
+        return _json_response(401, {"error": "Unauthorized"})
+    if not WEB_USER_ID:
+        return _json_response(503, {"error": "WEB_USER_ID not configured"})
+    verb_id = (event.get("pathParameters") or {}).get("verb_id", "")
+    verb = verbs_client.get_verb(user_id=WEB_USER_ID, verb_id=verb_id)
+    if verb is None:
+        return _json_response(404, {"error": "Not found"})
+    return _json_response(200, verb)
+
+
 def lambda_handler(event, context):
+    route_key = event.get("routeKey", "")
+    if route_key == "GET /phrases":
+        return _handle_get_phrases(event)
+    if route_key == "GET /verbs":
+        return _handle_get_verbs(event)
+    if route_key == "GET /verbs/{verb_id}":
+        return _handle_get_verb(event)
+
     body = json.loads(event["body"])
 
     if "callback_query" in body:
