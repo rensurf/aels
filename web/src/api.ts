@@ -61,3 +61,78 @@ export async function fetchVerb(verbId: string): Promise<Verb | null> {
   const json = await resp.json() as Record<string, unknown>
   return mapVerb(json)
 }
+
+export async function deleteVerb(verbId: string): Promise<void> {
+  const resp = await fetch(`${API_BASE}/verbs/${verbId}`, {
+    method: 'DELETE',
+    headers,
+  })
+  if (!resp.ok) throw new Error(`Failed to delete verb: ${resp.status}`)
+}
+
+export async function createVerb(base: string): Promise<Verb> {
+  const resp = await fetch(`${API_BASE}/verbs`, {
+    method: 'POST',
+    headers: { ...headers, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ base }),
+  })
+  if (!resp.ok) throw new Error(`Failed to generate verb: ${resp.status}`)
+  return mapVerb(await resp.json() as Record<string, unknown>)
+}
+
+export interface ChatResponse {
+  message: string
+  phrases: Array<{
+    text: string
+    japanese: string
+    note: string
+    verb_id: string
+    pattern: string
+    register: Phrase['register']
+  }>
+}
+
+export async function chatWithTeacher(text: string): Promise<ChatResponse> {
+  const resp = await fetch(`${API_BASE}/chat`, {
+    method: 'POST',
+    headers: { ...headers, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ text }),
+  })
+  if (!resp.ok) throw new Error(`Chat failed: ${resp.status}`)
+  return resp.json() as Promise<ChatResponse>
+}
+
+export async function savePhrase(phrase: {
+  text: string
+  japanese: string
+  note: string
+  verb_id: string
+  pattern: string
+  register: Phrase['register']
+}): Promise<Phrase> {
+  const resp = await fetch(`${API_BASE}/phrases`, {
+    method: 'POST',
+    headers: { ...headers, 'Content-Type': 'application/json' },
+    body: JSON.stringify(phrase),
+  })
+  if (!resp.ok) throw new Error(`Save phrase failed: ${resp.status}`)
+  return mapPhrase(await resp.json() as Record<string, unknown>)
+}
+
+export async function updateVerb(verb: Verb): Promise<Verb> {
+  const body: Record<string, unknown> = {
+    base: verb.base,
+    patterns: verb.patterns,
+    confusable_with: verb.confusableWith,
+    similar_to: verb.similarTo,
+  }
+  if (verb.nounForm) body.noun_form = verb.nounForm
+  if (verb.adjForm) body.adj_form = verb.adjForm
+  const resp = await fetch(`${API_BASE}/verbs/${verb.id}`, {
+    method: 'PUT',
+    headers: { ...headers, 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+  if (!resp.ok) throw new Error(`Failed to save verb: ${resp.status}`)
+  return mapVerb(await resp.json() as Record<string, unknown>)
+}

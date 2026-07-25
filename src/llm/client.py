@@ -49,6 +49,7 @@ def _chat_openai(
         "model": _MODELS["openai"][model_tier],
         "messages": messages,
         "max_tokens": max_tokens,
+        "temperature": 0,
     }
     if json_mode:
         kwargs["response_format"] = {"type": "json_object"}

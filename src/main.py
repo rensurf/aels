@@ -15,6 +15,8 @@ from src.graph.client import GremlinClient
 from src.graph import queries as graph_queries
 from src.db.phrases import PhrasesClient
 from src.db.verbs import VerbsClient
+from src.tools.verb_tool import generate_verb_patterns
+from src.tools.chat_tool import chat_with_teacher
 
 session_client = SessionClient(table_name=DYNAMODB_SESSION_TABLE)
 phrases_client = PhrasesClient(table_name=DYNAMODB_PHRASES_TABLE)
@@ -252,6 +254,85 @@ def _handle_get_verbs(event: dict) -> dict:
     return _json_response(200, {"items": items})
 
 
+def _handle_post_verb(event: dict) -> dict:
+    if not _authorized(event):
+        return _json_response(401, {"error": "Unauthorized"})
+    if not WEB_USER_ID:
+        return _json_response(503, {"error": "WEB_USER_ID not configured"})
+    try:
+        body = json.loads(event.get("body") or "{}")
+        base = body.get("base", "").strip().lower()
+        if not base:
+            return _json_response(400, {"error": "base is required"})
+        verb = generate_verb_patterns(base)
+        return _json_response(200, verb)
+    except Exception as e:
+        print(f"[POST /verbs] error: {e}")
+        return _json_response(500, {"error": str(e)})
+
+
+def _handle_delete_verb(event: dict) -> dict:
+    if not _authorized(event):
+        return _json_response(401, {"error": "Unauthorized"})
+    if not WEB_USER_ID:
+        return _json_response(503, {"error": "WEB_USER_ID not configured"})
+    try:
+        verb_id = (event.get("pathParameters") or {}).get("verb_id", "")
+        verbs_client.delete_verb(user_id=WEB_USER_ID, verb_id=verb_id)
+        return _json_response(200, {"deleted": verb_id})
+    except Exception as e:
+        print(f"[DELETE /verbs] error: {e}")
+        return _json_response(500, {"error": str(e)})
+
+
+def _handle_put_verb(event: dict) -> dict:
+    if not _authorized(event):
+        return _json_response(401, {"error": "Unauthorized"})
+    if not WEB_USER_ID:
+        return _json_response(503, {"error": "WEB_USER_ID not configured"})
+    try:
+        verb_id = (event.get("pathParameters") or {}).get("verb_id", "")
+        body = json.loads(event.get("body") or "{}")
+        body["verb_id"] = verb_id
+        body.setdefault("base", verb_id)
+        saved = verbs_client.put_verb(user_id=WEB_USER_ID, verb=body)
+        return _json_response(200, saved)
+    except Exception as e:
+        print(f"[PUT /verbs] error: {e}")
+        return _json_response(500, {"error": str(e)})
+
+
+def _handle_post_phrase(event: dict) -> dict:
+    if not _authorized(event):
+        return _json_response(401, {"error": "Unauthorized"})
+    if not WEB_USER_ID:
+        return _json_response(503, {"error": "WEB_USER_ID not configured"})
+    try:
+        body = json.loads(event.get("body") or "{}")
+        if not body.get("text"):
+            return _json_response(400, {"error": "text is required"})
+        saved = phrases_client.put_phrase(user_id=WEB_USER_ID, phrase=body)
+        return _json_response(201, saved)
+    except Exception as e:
+        print(f"[POST /phrases] error: {e}")
+        return _json_response(500, {"error": str(e)})
+
+
+def _handle_post_chat(event: dict) -> dict:
+    if not _authorized(event):
+        return _json_response(401, {"error": "Unauthorized"})
+    try:
+        body = json.loads(event.get("body") or "{}")
+        text = body.get("text", "").strip()
+        if not text:
+            return _json_response(400, {"error": "text is required"})
+        result = chat_with_teacher(text)
+        return _json_response(200, result)
+    except Exception as e:
+        print(f"[POST /chat] error: {e}")
+        return _json_response(500, {"error": str(e)})
+
+
 def _handle_get_verb(event: dict) -> dict:
     if not _authorized(event):
         return _json_response(401, {"error": "Unauthorized"})
@@ -268,10 +349,20 @@ def lambda_handler(event, context):
     route_key = event.get("routeKey", "")
     if route_key == "GET /phrases":
         return _handle_get_phrases(event)
+    if route_key == "POST /phrases":
+        return _handle_post_phrase(event)
+    if route_key == "POST /chat":
+        return _handle_post_chat(event)
     if route_key == "GET /verbs":
         return _handle_get_verbs(event)
     if route_key == "GET /verbs/{verb_id}":
         return _handle_get_verb(event)
+    if route_key == "POST /verbs":
+        return _handle_post_verb(event)
+    if route_key == "PUT /verbs/{verb_id}":
+        return _handle_put_verb(event)
+    if route_key == "DELETE /verbs/{verb_id}":
+        return _handle_delete_verb(event)
 
     body = json.loads(event["body"])
 

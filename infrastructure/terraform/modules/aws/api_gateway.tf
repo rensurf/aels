@@ -1,6 +1,13 @@
 resource "aws_apigatewayv2_api" "aels" {
   name          = "aels-api"
   protocol_type = "HTTP"
+
+  cors_configuration {
+    allow_origins = ["*"]
+    allow_methods = ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
+    allow_headers = ["x-api-key", "content-type"]
+    max_age       = 300
+  }
 }
 
 resource "aws_apigatewayv2_integration" "lambda" {
@@ -22,6 +29,18 @@ resource "aws_apigatewayv2_route" "get_phrases" {
   target    = "integrations/${aws_apigatewayv2_integration.lambda.id}"
 }
 
+resource "aws_apigatewayv2_route" "post_phrases" {
+  api_id    = aws_apigatewayv2_api.aels.id
+  route_key = "POST /phrases"
+  target    = "integrations/${aws_apigatewayv2_integration.lambda.id}"
+}
+
+resource "aws_apigatewayv2_route" "post_chat" {
+  api_id    = aws_apigatewayv2_api.aels.id
+  route_key = "POST /chat"
+  target    = "integrations/${aws_apigatewayv2_integration.lambda.id}"
+}
+
 resource "aws_apigatewayv2_route" "get_verbs" {
   api_id    = aws_apigatewayv2_api.aels.id
   route_key = "GET /verbs"
@@ -31,6 +50,24 @@ resource "aws_apigatewayv2_route" "get_verbs" {
 resource "aws_apigatewayv2_route" "get_verb" {
   api_id    = aws_apigatewayv2_api.aels.id
   route_key = "GET /verbs/{verb_id}"
+  target    = "integrations/${aws_apigatewayv2_integration.lambda.id}"
+}
+
+resource "aws_apigatewayv2_route" "post_verbs" {
+  api_id    = aws_apigatewayv2_api.aels.id
+  route_key = "POST /verbs"
+  target    = "integrations/${aws_apigatewayv2_integration.lambda.id}"
+}
+
+resource "aws_apigatewayv2_route" "put_verb" {
+  api_id    = aws_apigatewayv2_api.aels.id
+  route_key = "PUT /verbs/{verb_id}"
+  target    = "integrations/${aws_apigatewayv2_integration.lambda.id}"
+}
+
+resource "aws_apigatewayv2_route" "delete_verb" {
+  api_id    = aws_apigatewayv2_api.aels.id
+  route_key = "DELETE /verbs/{verb_id}"
   target    = "integrations/${aws_apigatewayv2_integration.lambda.id}"
 }
 

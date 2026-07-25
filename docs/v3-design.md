@@ -203,15 +203,59 @@ SK: verb_id
 | 1 | DynamoDB スキーマ + Terraform（phrases/verbs テーブル + IAM） | ✅ 完了 | `5f2ca3b` |
 | 2 | 読み取り API（GET /phrases, GET /verbs, GET /verbs/{verb_id}） | ✅ 完了 | `ccfc58b` |
 | 3 | S3 + CloudFront Terraform + Web UI 本実装 | ✅ 完了 | `024dfac`, `306bfcf` |
-| 4 | Verb 登録 API + UI | 🔲 次にやる | — |
-| 5 | Chat 書き込み API（フレーズ保存エンドポイント） | 🔲 未着手 | — |
-| 6 | CosmosDB → DynamoDB 移行スクリプト | 🔲 後回し | — |
+| 4 | Verb 登録 API + UI | ✅ 完了 | — |
+| 5 | Chat 書き込み API（POST /phrases・POST /chat）+ VariantD 実 API 接続 | ✅ 完了 | — |
+| 6 | Chat スレッド管理（履歴保持・スレッド切り替え） | 🔲 次にやる | — |
+| 7 | CosmosDB → DynamoDB 移行スクリプト | 🔲 後回し | — |
 
 ---
 
 ---
 
-## Step 4 設計メモ（次にやること）
+## Step 4 完了記録
+
+### 実装済みファイル
+
+| ファイル | 内容 |
+|---|---|
+| `src/tools/verb_tool.py` | GPT-4o で V1〜V5 パターンを自動生成（新規） |
+| `src/db/verbs.py` | `put_verb()` / `delete_verb()` 追加 |
+| `src/main.py` | `POST /verbs`・`PUT /verbs/{verb_id}`・`DELETE /verbs/{verb_id}` ハンドラ追加 |
+| `web/src/api.ts` | `createVerb()` / `updateVerb()` / `deleteVerb()` 追加 |
+| `web/src/types.ts` | `VerbPattern.memo?: string` 追加 |
+| `web/src/App.tsx` | `handleVerbUpdated` / `handleVerbDeleted` 追加 |
+| `web/src/variants/VariantA.tsx` | 動詞追加フォーム・Edit モード（例文編集・メモ欄・パターン追加・動詞削除） |
+| `infrastructure/terraform/modules/aws/api_gateway.tf` | POST/PUT/DELETE ルート追加・CORS 設定追加 |
+| `infrastructure/scripts/deploy.sh` | `WEB_API_KEY`・`WEB_USER_ID` を ENV_VARS に追加 |
+| `web/.env` | `VITE_API_BASE_URL`・`VITE_API_KEY` を設定（gitignore 対象） |
+| `tests/unit/test_verb_tool.py` | 5件 |
+| `tests/unit/test_verbs_db.py` | 5件 |
+| `tests/unit/test_web_verb_handlers.py` | 10件 |
+
+### 設計変更：パターン記法を V1〜V5 に変更
+
+当初 OALD 記法（`[VN]` `[VN inf]` 等）を予定していたが、日本の5文型（V1〜V5）に変更。
+
+| 記法 | 構造 | 例 |
+|---|---|---|
+| V1 | S+V（自動詞） | "The sun rises." |
+| V2 | S+V+C（連結動詞） | "She became famous." |
+| V3 | S+V+O（他動詞・that節・wh節をまとめる） | "I heard a noise." |
+| V4 | S+V+O+O（授与動詞） | "She gave me a book." |
+| V5 | S+V+O+C（複合他動詞） | "I heard him sing." |
+
+### インフラ作業（このセッションで実施）
+
+Terraform state に登録されていなかったリソースを `terraform apply` で一括作成：
+- `aels-phrases` / `aels-verbs` DynamoDB テーブル
+- API Gateway 全ルート（GET/POST/PUT）
+- S3 + CloudFront（Web UI ホスティング）
+- IAM ポリシー（Lambda → DynamoDB アクセス権）
+- CORS 設定（ブラウザからの `fetch` を許可）
+
+---
+
+## Step 4 設計メモ（参考・実装済み）
 
 ### Verb 登録 API
 
@@ -259,6 +303,108 @@ VariantA の動詞サイドバーに「+ Add verb」ボタンを追加。
 - `src/main.py` にルーティング追加（POST /verbs, PUT /verbs/{verb_id}）
 - `src/tools/verb_tool.py` を新規作成（GPT-4o 呼び出し）
 - `infrastructure/terraform/modules/aws/api_gateway.tf` にルート追加
+
+---
+
+## Step 5 設計メモ（次にやること）
+
+### Chat 書き込み API
+
+**エンドポイント**
+- `POST /phrases` — フレーズを DynamoDB に保存
+
+**POST /phrases のリクエスト**
+```json
+{
+  "text": "I'll look into it.",
+  "japanese": "確認しておきます",
+  "note": "ビジネスメールでよく使う",
+  "verb_id": "look",
+  "pattern": "V3",
+  "register": "formal"
+}
+```
+
+**POST /phrases のレスポンス**
+```json
+{
+  "phrase_id": "uuid-...",
+  "user_id": "8438407995",
+  "text": "I'll look into it.",
+  "japanese": "確認しておきます",
+  "note": "ビジネスメールでよく使う",
+  "verb_id": "look",
+  "pattern": "V3",
+  "register": "formal",
+  "ease_factor": 2.5,
+  "interval": 0,
+  "repetitions": 0,
+  "due_date": "2026-07-25",
+  "created_at": "2026-07-25T..."
+}
+```
+
+**Lambda の処理**
+1. `src/db/phrases.py` に `put_phrase()` を追加
+2. `src/main.py` に `_handle_post_phrase` を追加
+3. SM-2 初期値（ease_factor=2.5, interval=0, repetitions=0, due_date=今日）を設定
+
+**認証**: 既存の `x-api-key` ヘッダーを使う
+
+### VariantD（Chat UI）への統合
+
+VariantD の「チェックして保存」フローを実際の API に接続する。
+現在はモック (`mockAI.ts`) を使っているため、`POST /phrases` に差し替える。
+
+**実装ファイル**
+- `src/db/phrases.py` に `put_phrase()` 追加
+- `src/main.py` に `POST /phrases` ルーティング追加
+- `web/src/api.ts` に `savePhrase(phrase)` 追加
+- `web/src/variants/VariantD.tsx` の保存処理を実 API に差し替え
+- `infrastructure/terraform/modules/aws/api_gateway.tf` に `POST /phrases` ルート追加
+
+---
+
+## Step 6 設計メモ（次にやること）
+
+### Chat スレッド管理
+
+**方針**: ChatGPT ライクな完全実装は不要。最小構成で履歴保持を実現する。
+
+**DynamoDB テーブル**
+```
+aels-chat-threads
+  PK: user_id
+  SK: thread_id（UUID）
+  messages: [{role, content}]  # 会話履歴全体
+  created_at: string
+```
+
+**エンドポイント**
+- `POST /threads` — 新しいスレッド作成 → `thread_id` を返す
+- `GET /threads` — スレッド一覧（created_at 降順）
+- `GET /threads/{thread_id}` — スレッドの会話履歴を取得
+- `POST /chat` — `thread_id` を受け取り、履歴を DynamoDB から読み込んで LLM に渡す → 返答後に DynamoDB に追記
+
+**POST /chat リクエスト変更**
+```json
+{ "text": "deal withは変？", "thread_id": "uuid-..." }
+```
+
+**VariantD UI 変更**
+- 上部にスレッドリスト（シンプルなドロップダウンまたは小さなリスト）
+- 「+ 新しいスレッド」ボタン
+- 10ターン超えたら「そろそろ新しいスレッドを始めませんか？」バナー表示
+- ページリロードしても最後のスレッドが復元される
+
+**実装ファイル**
+- `infrastructure/terraform/modules/aws/dynamodb.tf` — `aels-chat-threads` テーブル追加
+- `src/db/threads.py` — 新規作成（スレッドの CRUD）
+- `src/main.py` — `POST /threads`・`GET /threads`・`GET /threads/{id}` ハンドラ追加、`POST /chat` を thread_id 対応に変更
+- `src/tools/chat_tool.py` — `history` 引数を追加
+- `infrastructure/terraform/modules/aws/api_gateway.tf` — 3ルート追加
+- `web/src/api.ts` — `createThread()`・`fetchThreads()`・`fetchThread()` 追加、`chatWithTeacher` に `thread_id` 追加
+- `web/src/variants/VariantD.tsx` — スレッドリスト UI・10ターンバナー追加
 
 ---
 

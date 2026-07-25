@@ -1,18 +1,22 @@
-// TODO(Step 5): Replace getMockResponse with real POST /chat API call
 import { useState, useRef, useEffect } from 'react'
 import type { Phrase } from '../types'
-import { getMockResponse, aiPhraseToPhrase } from '../data/mockAI'
+import { chatWithTeacher, savePhrase } from '../api'
+import type { ChatResponse } from '../api'
+
+type ProposedPhrase = ChatResponse['phrases'][number] & { _id: string }
 
 interface Message {
   id: string
   role: 'user' | 'assistant'
   text: string
-  proposedPhrases?: Phrase[]
+  proposedPhrases?: ProposedPhrase[]
 }
 
 interface Props {
   onPhrasesAdded: (phrases: Phrase[]) => void
 }
+
+let _idCounter = 0
 
 export function VariantD({ onPhrasesAdded }: Props) {
   const [messages, setMessages] = useState<Message[]>([
@@ -26,6 +30,7 @@ export function VariantD({ onPhrasesAdded }: Props) {
   const [isTyping, setIsTyping] = useState(false)
   const [selections, setSelections] = useState<Record<string, Set<string>>>({})
   const [savedMessages, setSavedMessages] = useState<Set<string>>(new Set())
+  const [savingMessages, setSavingMessages] = useState<Set<string>>(new Set())
   const bottomRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -41,18 +46,27 @@ export function VariantD({ onPhrasesAdded }: Props) {
     setInput('')
     setIsTyping(true)
 
-    await new Promise(r => setTimeout(r, 800 + Math.random() * 600))
+    try {
+      const response = await chatWithTeacher(text)
+      const proposed: ProposedPhrase[] = response.phrases.map(p => ({ ...p, _id: `p${++_idCounter}` }))
+      const msgId = `a${Date.now()}`
 
-    const response = getMockResponse(text)
-    const proposed = response.phrases.map(aiPhraseToPhrase)
-    const msgId = `a${Date.now()}`
+      if (proposed.length > 0) {
+        setSelections(prev => ({ ...prev, [msgId]: new Set(proposed.map(p => p._id)) }))
+      }
 
-    if (proposed.length > 0) {
-      setSelections(prev => ({ ...prev, [msgId]: new Set(proposed.map(p => p.id)) }))
+      setMessages(prev => [
+        ...prev,
+        { id: msgId, role: 'assistant', text: response.message, proposedPhrases: proposed.length > 0 ? proposed : undefined },
+      ])
+    } catch (e) {
+      setMessages(prev => [
+        ...prev,
+        { id: `err${Date.now()}`, role: 'assistant', text: '❌ エラーが発生しました。もう一度試してください。' },
+      ])
+    } finally {
+      setIsTyping(false)
     }
-
-    setIsTyping(false)
-    setMessages(prev => [...prev, { id: msgId, role: 'assistant', text: response.message, proposedPhrases: proposed.length > 0 ? proposed : undefined }])
   }
 
   function togglePhrase(msgId: string, phraseId: string) {
@@ -64,12 +78,30 @@ export function VariantD({ onPhrasesAdded }: Props) {
     })
   }
 
-  function handleSavePhrases(msg: Message) {
+  async function handleSavePhrases(msg: Message) {
     const selected = selections[msg.id] ?? new Set()
-    const toSave = (msg.proposedPhrases ?? []).filter(p => selected.has(p.id))
+    const toSave = (msg.proposedPhrases ?? []).filter(p => selected.has(p._id))
     if (!toSave.length) return
-    onPhrasesAdded(toSave)
-    setSavedMessages(prev => new Set([...prev, msg.id]))
+
+    setSavingMessages(prev => new Set([...prev, msg.id]))
+    try {
+      const saved = await Promise.all(
+        toSave.map(p => savePhrase({
+          text: p.text,
+          japanese: p.japanese,
+          note: p.note,
+          verb_id: p.verb_id,
+          pattern: p.pattern,
+          register: p.register,
+        }))
+      )
+      onPhrasesAdded(saved)
+      setSavedMessages(prev => new Set([...prev, msg.id]))
+    } catch (e) {
+      console.error('Save failed:', e)
+    } finally {
+      setSavingMessages(prev => { const s = new Set(prev); s.delete(msg.id); return s })
+    }
   }
 
   function handleKeyDown(e: React.KeyboardEvent) {
@@ -111,15 +143,15 @@ export function VariantD({ onPhrasesAdded }: Props) {
               <div style={{ marginLeft: 36, marginTop: 8, maxWidth: '72%' }}>
                 {savedMessages.has(msg.id) ? (
                   <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 10, padding: '10px 14px', fontSize: 13, color: '#16a34a', fontWeight: 600 }}>
-                    ✓ {(msg.proposedPhrases ?? []).filter(p => (selections[msg.id] ?? new Set()).has(p.id)).length}件保存しました
+                    ✓ {(msg.proposedPhrases ?? []).filter(p => (selections[msg.id] ?? new Set()).has(p._id)).length}件保存しました
                   </div>
                 ) : (
                   <div style={{ background: '#fafafa', border: '1px solid #e2e8f0', borderRadius: 10, overflow: 'hidden' }}>
                     <div style={{ padding: '10px 14px', fontSize: 12, color: '#64748b', borderBottom: '1px solid #e2e8f0' }}>保存するフレーズを選択</div>
                     {msg.proposedPhrases.map(p => {
-                      const isChecked = (selections[msg.id] ?? new Set()).has(p.id)
+                      const isChecked = (selections[msg.id] ?? new Set()).has(p._id)
                       return (
-                        <div key={p.id} onClick={() => togglePhrase(msg.id, p.id)} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '12px 14px', borderBottom: '1px solid #f1f5f9', cursor: 'pointer', background: isChecked ? '#f8faff' : '#fff' }}>
+                        <div key={p._id} onClick={() => togglePhrase(msg.id, p._id)} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '12px 14px', borderBottom: '1px solid #f1f5f9', cursor: 'pointer', background: isChecked ? '#f8faff' : '#fff' }}>
                           <div style={{ width: 18, height: 18, borderRadius: 4, flexShrink: 0, marginTop: 2, border: `2px solid ${isChecked ? '#6366f1' : '#cbd5e1'}`, background: isChecked ? '#6366f1' : '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                             {isChecked && <span style={{ color: '#fff', fontSize: 11, fontWeight: 700 }}>✓</span>}
                           </div>
@@ -135,11 +167,11 @@ export function VariantD({ onPhrasesAdded }: Props) {
                     })}
                     <div style={{ padding: '10px 14px' }}>
                       <button
-                        onClick={() => handleSavePhrases(msg)}
-                        disabled={(selections[msg.id]?.size ?? 0) === 0}
-                        style={{ width: '100%', padding: 8, background: (selections[msg.id]?.size ?? 0) > 0 ? '#6366f1' : '#e2e8f0', color: (selections[msg.id]?.size ?? 0) > 0 ? '#fff' : '#94a3b8', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: (selections[msg.id]?.size ?? 0) > 0 ? 'pointer' : 'default' }}
+                        onClick={() => void handleSavePhrases(msg)}
+                        disabled={(selections[msg.id]?.size ?? 0) === 0 || savingMessages.has(msg.id)}
+                        style={{ width: '100%', padding: 8, background: (selections[msg.id]?.size ?? 0) > 0 && !savingMessages.has(msg.id) ? '#6366f1' : '#e2e8f0', color: (selections[msg.id]?.size ?? 0) > 0 && !savingMessages.has(msg.id) ? '#fff' : '#94a3b8', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: (selections[msg.id]?.size ?? 0) > 0 && !savingMessages.has(msg.id) ? 'pointer' : 'default' }}
                       >
-                        {(selections[msg.id]?.size ?? 0) > 0 ? `${selections[msg.id]?.size}件を保存` : '選択してください'}
+                        {savingMessages.has(msg.id) ? '保存中...' : (selections[msg.id]?.size ?? 0) > 0 ? `${selections[msg.id]?.size}件を保存` : '選択してください'}
                       </button>
                     </div>
                   </div>
