@@ -30,6 +30,18 @@ export default function App() {
     setPhrases(prev => [...prev, ...newPhrases])
   }, [])
 
+  const handleVerbAdded = useCallback((verb: Verb) => {
+    setVerbs(prev => [...prev, verb])
+  }, [])
+
+  const handleVerbUpdated = useCallback((verb: Verb) => {
+    setVerbs(prev => prev.map(v => v.id === verb.id ? verb : v))
+  }, [])
+
+  const handleVerbDeleted = useCallback((verbId: string) => {
+    setVerbs(prev => prev.filter(v => v.id !== verbId))
+  }, [])
+
   if (loading) {
     return (
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', fontFamily: 'system-ui', color: '#64748b' }}>
@@ -48,7 +60,7 @@ export default function App() {
 
   return (
     <>
-      {view === 'A' && <VariantA verbs={verbs} phrases={phrases} />}
+      {view === 'A' && <VariantA verbs={verbs} phrases={phrases} onVerbAdded={handleVerbAdded} onVerbUpdated={handleVerbUpdated} onVerbDeleted={handleVerbDeleted} />}
       {view === 'B' && <VariantB verbs={verbs} phrases={phrases} />}
       {view === 'C' && <VariantC phrases={phrases} verbs={verbs} />}
       {view === 'D' && <VariantD onPhrasesAdded={handlePhrasesAdded} />}

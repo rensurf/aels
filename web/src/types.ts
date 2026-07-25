@@ -4,6 +4,7 @@ export interface VerbPattern {
   code: string
   description: string
   examples: string[]
+  memo?: string
 }
 
 export interface Phrase {
