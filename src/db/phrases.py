@@ -63,6 +63,8 @@ class PhrasesClient:
             item["pattern"] = phrase["pattern"]
         if phrase.get("examples"):
             item["examples"] = phrase["examples"]
+        if phrase.get("alternatives"):
+            item["alternatives"] = phrase["alternatives"]
         self.table.put_item(Item=item)
         return _normalize(item)
 
@@ -113,6 +115,15 @@ class PhrasesClient:
             ReturnValues="ALL_NEW",
         )
         return _normalize(result["Attributes"])
+
+    def add_alternative(self, user_id: str, phrase_id: str, alternative: dict) -> dict:
+        self.table.update_item(
+            Key={"user_id": user_id, "phrase_id": phrase_id},
+            UpdateExpression="SET alternatives = list_append(if_not_exists(alternatives, :empty), :alt)",
+            ExpressionAttributeValues={":alt": [alternative], ":empty": []},
+        )
+        resp = self.table.get_item(Key={"user_id": user_id, "phrase_id": phrase_id})
+        return _normalize(resp["Item"])
 
     def update_phrase(self, user_id: str, phrase_id: str, updates: dict) -> dict | None:
         set_parts: list[str] = []

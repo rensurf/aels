@@ -1,31 +1,23 @@
 import { useState } from 'react'
-import type { Phrase, PhraseGroup, Verb } from '../types'
-import { reviewPhrase, reviewPhraseGroup } from '../api'
+import type { Phrase, Verb } from '../types'
+import { reviewPhrase } from '../api'
 import { getStrengthColor, today } from '../utils'
 
 type CardState = 'front' | 'back'
-type QueueItem = { kind: 'phrase'; data: Phrase } | { kind: 'group'; data: PhraseGroup }
 
 interface Props {
   phrases: Phrase[]
-  phraseGroups: PhraseGroup[]
   verbs: Verb[]
   streak: number
   completedDates: string[]
   onPhraseReviewed: (phrase: Phrase) => void
-  onGroupReviewed: (group: PhraseGroup) => void
   onStreakUpdated: (streak: number, completedDates: string[]) => void
 }
 
-export function VariantC({ phrases, phraseGroups, verbs, streak, completedDates, onPhraseReviewed, onGroupReviewed, onStreakUpdated }: Props) {
+export function VariantC({ phrases, verbs, streak, completedDates, onPhraseReviewed, onStreakUpdated }: Props) {
   const NOW = today()
-  const duePhrases = phrases.filter(p => p.dueDate <= NOW)
-  const dueGroups = phraseGroups.filter(g => g.dueDate <= NOW)
-  const dueItems: QueueItem[] = [
-    ...duePhrases.map(p => ({ kind: 'phrase' as const, data: p })),
-    ...dueGroups.map(g => ({ kind: 'group' as const, data: g })),
-  ]
-  const [queue, setQueue] = useState<QueueItem[]>(dueItems)
+  const dueItems = phrases.filter(p => p.dueDate <= NOW)
+  const [queue, setQueue] = useState<Phrase[]>(dueItems)
   const [cardState, setCardState] = useState<CardState>('front')
   const [results, setResults] = useState<{ id: string; correct: boolean }[]>([])
 
@@ -33,34 +25,23 @@ export function VariantC({ phrases, phraseGroups, verbs, streak, completedDates,
   const done = results.length
   const total = dueItems.length
 
-  const verbOfDay = verbs.find(v => duePhrases.some(p => p.verbId === v.id)) ?? verbs[0]
+  const verbOfDay = verbs.find(v => dueItems.some(p => p.verbId === v.id)) ?? verbs[0]
   const verbOfDayPhrases = verbOfDay ? phrases.filter(p => p.verbId === verbOfDay.id) : []
 
   async function handleResult(correct: boolean) {
     if (!current) return
-    const itemId = current.kind === 'phrase' ? current.data.id : current.data.id
-    setResults(r => [...r, { id: itemId, correct }])
+    setResults(r => [...r, { id: current.id, correct }])
     setQueue(q => q.slice(1))
     setCardState('front')
 
     try {
       const quality = correct ? 4 : 1
-      if (current.kind === 'phrase') {
-        const result = await reviewPhrase(current.data.id, quality)
-        onPhraseReviewed(result.phrase)
-        if (result.streak_updated) {
-          const newDate = new Date().toISOString().slice(0, 10)
-          const newDates = completedDates.includes(newDate) ? completedDates : [...completedDates, newDate].sort()
-          onStreakUpdated(result.streak, newDates)
-        }
-      } else {
-        const result = await reviewPhraseGroup(current.data.id, quality)
-        onGroupReviewed(result.group)
-        if (result.streak_updated) {
-          const newDate = new Date().toISOString().slice(0, 10)
-          const newDates = completedDates.includes(newDate) ? completedDates : [...completedDates, newDate].sort()
-          onStreakUpdated(result.streak, newDates)
-        }
+      const result = await reviewPhrase(current.id, quality)
+      onPhraseReviewed(result.phrase)
+      if (result.streak_updated) {
+        const newDate = new Date().toISOString().slice(0, 10)
+        const newDates = completedDates.includes(newDate) ? completedDates : [...completedDates, newDate].sort()
+        onStreakUpdated(result.streak, newDates)
       }
     } catch {
       // SM-2 update is best-effort; UI already updated
@@ -90,7 +71,7 @@ export function VariantC({ phrases, phraseGroups, verbs, streak, completedDates,
               🔥 {streak}日
             </div>
           )}
-          <div style={{ fontSize: 20, fontWeight: 700, color: '#ef4444' }}>{dueItems.length} due</div>
+          <div style={{ fontSize: 20, fontWeight: 700, color: '#ef4444' }}>{total} due</div>
           <div style={{ fontSize: 12, color: '#94a3b8' }}>phrases today</div>
         </div>
       </div>
@@ -139,43 +120,37 @@ export function VariantC({ phrases, phraseGroups, verbs, streak, completedDates,
               {cardState === 'front' ? (
                 <>
                   <div style={{ fontSize: 19, color: '#f1f5f9', lineHeight: 1.5, marginBottom: 20 }}>
-                    {current.kind === 'phrase' ? current.data.japanese : current.data.japanese}
+                    {current.japanese}
                   </div>
                   <div style={{ fontSize: 13, color: '#475569', textAlign: 'center' }}>
                     タップして英語を確認 →
                   </div>
                 </>
-              ) : current.kind === 'phrase' ? (
+              ) : (
                 <>
                   <div style={{ fontSize: 13, color: '#818cf8', marginBottom: 12 }}>English</div>
                   <div style={{ fontSize: 17, color: '#e0e7ff', lineHeight: 1.6, marginBottom: 14 }}>
-                    {current.data.text}
+                    {current.text}
                   </div>
-                  {current.data.note && (
-                    <div style={{ fontSize: 13, color: '#6366f1', background: '#1e1b4b', padding: '10px 14px', borderRadius: 8, lineHeight: 1.6 }}>
-                      {current.data.note}
+                  {current.note && (
+                    <div style={{ fontSize: 13, color: '#6366f1', background: '#1e1b4b', padding: '10px 14px', borderRadius: 8, lineHeight: 1.6, marginBottom: 14 }}>
+                      {current.note}
                     </div>
                   )}
-                  <div style={{ fontSize: 12, color: '#334155', textAlign: 'center', marginTop: 20 }}>
-                    タップして問題に戻る ←
-                  </div>
-                </>
-              ) : (
-                <>
-                  <div style={{ fontSize: 13, color: '#818cf8', marginBottom: 12 }}>English alternatives</div>
-                  {current.data.alternatives.map((alt, i) => (
-                    <div key={i} style={{ marginBottom: 12 }}>
-                      <div style={{ fontSize: 16, color: '#e0e7ff', lineHeight: 1.6 }}>
-                        {i + 1}. {alt.text}
-                      </div>
-                      {alt.note && (
-                        <div style={{ fontSize: 12, color: '#6366f1', marginTop: 4, paddingLeft: 16, lineHeight: 1.5 }}>
-                          {alt.note}
+                  {current.alternatives && current.alternatives.length > 0 && (
+                    <div style={{ borderTop: '1px solid #334155', paddingTop: 12 }}>
+                      <div style={{ fontSize: 11, color: '#475569', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.06em' }}>他の言い方</div>
+                      {current.alternatives.map((alt, i) => (
+                        <div key={i} style={{ marginBottom: 10 }}>
+                          <div style={{ fontSize: 14, color: '#c7d2fe', lineHeight: 1.6 }}>{alt.text}</div>
+                          {alt.note && (
+                            <div style={{ fontSize: 12, color: '#6366f1', marginTop: 3, lineHeight: 1.5 }}>{alt.note}</div>
+                          )}
                         </div>
-                      )}
+                      ))}
                     </div>
-                  ))}
-                  <div style={{ fontSize: 12, color: '#334155', textAlign: 'center', marginTop: 12 }}>
+                  )}
+                  <div style={{ fontSize: 12, color: '#334155', textAlign: 'center', marginTop: 16 }}>
                     タップして問題に戻る ←
                   </div>
                 </>
@@ -201,11 +176,11 @@ export function VariantC({ phrases, phraseGroups, verbs, streak, completedDates,
               <div style={{ marginTop: 24, width: '100%', maxWidth: 480 }}>
                 <div style={{ fontSize: 12, color: '#475569', marginBottom: 8 }}>Next up</div>
                 {queue.slice(1, 3).map((item, i) => (
-                  <div key={item.kind === 'phrase' ? item.data.id : item.data.id} style={{
+                  <div key={item.id} style={{
                     padding: '10px 14px', background: '#1e293b', borderRadius: 8, marginBottom: 6,
                     fontSize: 13, color: '#64748b', opacity: 1 - i * 0.3,
                   }}>
-                    {item.data.japanese}
+                    {item.japanese}
                   </div>
                 ))}
               </div>

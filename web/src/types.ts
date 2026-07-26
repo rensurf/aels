@@ -8,6 +8,13 @@ export interface VerbPattern {
   memo?: string
 }
 
+export interface Alternative {
+  text: string
+  note: string
+  verb_id: string
+  register: Register
+}
+
 export interface Phrase {
   id: string
   text: string
@@ -23,24 +30,7 @@ export interface Phrase {
   interval: number
   memo?: string
   examples?: string[]
-}
-
-export interface Alternative {
-  text: string
-  note: string
-  verb_id: string
-  register: Register
-}
-
-export interface PhraseGroup {
-  id: string
-  japanese: string
-  alternatives: Alternative[]
-  easeFactor: number
-  dueDate: string
-  repetitions: number
-  interval: number
-  createdAt: string
+  alternatives?: Alternative[]
 }
 
 export interface Verb {

@@ -95,35 +95,6 @@ resource "aws_dynamodb_table" "user_stats" {
   }
 }
 
-resource "aws_dynamodb_table" "phrase_groups" {
-  name         = "aels-phrase-groups"
-  billing_mode = "PAY_PER_REQUEST"
-  hash_key     = "user_id"
-  range_key    = "group_id"
-
-  attribute {
-    name = "user_id"
-    type = "S"
-  }
-
-  attribute {
-    name = "group_id"
-    type = "S"
-  }
-
-  attribute {
-    name = "due_date"
-    type = "S"
-  }
-
-  global_secondary_index {
-    name            = "user_id-due_date-index"
-    hash_key        = "user_id"
-    range_key       = "due_date"
-    projection_type = "ALL"
-  }
-}
-
 resource "aws_dynamodb_table" "chat_threads" {
   name         = "aels-chat-threads"
   billing_mode = "PAY_PER_REQUEST"
