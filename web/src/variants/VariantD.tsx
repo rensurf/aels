@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
-import type { Phrase } from '../types'
-import { chatWithTeacher, savePhrase, createThread, fetchThreads, fetchThread } from '../api'
+import type { Phrase, PhraseGroup } from '../types'
+import { chatWithTeacher, savePhraseGroup, createThread, fetchThreads, fetchThread } from '../api'
 import type { ChatResponse, Thread } from '../api'
 
 type ProposedPhrase = ChatResponse['phrases'][number] & { _id: string }
@@ -14,6 +14,7 @@ interface Message {
 
 interface Props {
   onPhrasesAdded: (phrases: Phrase[]) => void
+  onGroupAdded: (group: PhraseGroup) => void
 }
 
 const LAST_THREAD_KEY = 'aels_last_thread_id'
@@ -31,7 +32,7 @@ const INTRO_MSG: Message = {
   text: 'こんにちは、Ren！\n\n英語で言いたいことがあれば日本語で気軽に聞いてください。気に入ったフレーズを選んで保存できます。\n\n例：「確認しておきます、って英語でなんていう？」',
 }
 
-export function VariantD({ onPhrasesAdded }: Props) {
+export function VariantD({ onPhrasesAdded: _onPhrasesAdded, onGroupAdded }: Props) {
   const [threads, setThreads] = useState<Thread[]>([])
   const [activeThreadId, setActiveThreadId] = useState<string | null>(null)
   const [messages, setMessages] = useState<Message[]>([INTRO_MSG])
@@ -159,17 +160,15 @@ export function VariantD({ onPhrasesAdded }: Props) {
 
     setSavingMessages(prev => new Set([...prev, msg.id]))
     try {
-      const saved = await Promise.all(
-        toSave.map(p => savePhrase({
-          text: p.text,
-          japanese: p.japanese,
-          note: p.note,
-          verb_id: p.verb_id,
-          pattern: p.pattern,
-          register: p.register,
-        }))
-      )
-      onPhrasesAdded(saved)
+      const japanese = toSave[0].japanese
+      const alternatives = toSave.map(p => ({
+        text: p.text,
+        note: p.note,
+        verb_id: p.verb_id,
+        register: p.register,
+      }))
+      const group = await savePhraseGroup({ japanese, alternatives })
+      onGroupAdded(group)
       setSavedMessages(prev => new Set([...prev, msg.id]))
     } catch (e) {
       console.error('Save failed:', e)
@@ -252,7 +251,7 @@ export function VariantD({ onPhrasesAdded }: Props) {
                   </div>
                 ) : (
                   <div style={{ background: '#fafafa', border: '1px solid #e2e8f0', borderRadius: 10, overflow: 'hidden' }}>
-                    <div style={{ padding: '10px 14px', fontSize: 12, color: '#64748b', borderBottom: '1px solid #e2e8f0' }}>保存するフレーズを選択</div>
+                    <div style={{ padding: '10px 14px', fontSize: 12, color: '#64748b', borderBottom: '1px solid #e2e8f0' }}>選んでグループとして保存</div>
                     {msg.proposedPhrases.map(p => {
                       const isChecked = (selections[msg.id] ?? new Set()).has(p._id)
                       return (
@@ -276,7 +275,7 @@ export function VariantD({ onPhrasesAdded }: Props) {
                         disabled={(selections[msg.id]?.size ?? 0) === 0 || savingMessages.has(msg.id)}
                         style={{ width: '100%', padding: 8, background: (selections[msg.id]?.size ?? 0) > 0 && !savingMessages.has(msg.id) ? '#6366f1' : '#e2e8f0', color: (selections[msg.id]?.size ?? 0) > 0 && !savingMessages.has(msg.id) ? '#fff' : '#94a3b8', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: (selections[msg.id]?.size ?? 0) > 0 && !savingMessages.has(msg.id) ? 'pointer' : 'default' }}
                       >
-                        {savingMessages.has(msg.id) ? '保存中...' : (selections[msg.id]?.size ?? 0) > 0 ? `${selections[msg.id]?.size}件を保存` : '選択してください'}
+                        {savingMessages.has(msg.id) ? '保存中...' : (selections[msg.id]?.size ?? 0) > 0 ? `${selections[msg.id]?.size}件をグループ保存` : '選択してください'}
                       </button>
                     </div>
                   </div>

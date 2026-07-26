@@ -25,6 +25,24 @@ export interface Phrase {
   examples?: string[]
 }
 
+export interface Alternative {
+  text: string
+  note: string
+  verb_id: string
+  register: Register
+}
+
+export interface PhraseGroup {
+  id: string
+  japanese: string
+  alternatives: Alternative[]
+  easeFactor: number
+  dueDate: string
+  repetitions: number
+  interval: number
+  createdAt: string
+}
+
 export interface Verb {
   id: string
   base: string

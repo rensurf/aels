@@ -1,4 +1,4 @@
-import type { Phrase, Verb, PhraseType } from './types'
+import type { Phrase, Verb, PhraseType, PhraseGroup, Alternative } from './types'
 
 const API_BASE = (import.meta.env.VITE_API_BASE_URL as string) ?? ''
 const API_KEY = (import.meta.env.VITE_API_KEY as string) ?? ''
@@ -223,6 +223,72 @@ export async function fetchStats(): Promise<Stats> {
   const resp = await fetch(`${API_BASE}/stats`, { headers })
   if (!resp.ok) throw new Error(`Fetch stats failed: ${resp.status}`)
   return resp.json() as Promise<Stats>
+}
+
+function mapPhraseGroup(r: Record<string, unknown>): PhraseGroup {
+  return {
+    id: String(r.group_id),
+    japanese: String(r.japanese ?? ''),
+    alternatives: (r.alternatives as Alternative[]) ?? [],
+    easeFactor: Number(r.ease_factor ?? 2.5),
+    dueDate: String(r.due_date ?? ''),
+    repetitions: Number(r.repetitions ?? 0),
+    interval: Number(r.interval ?? 0),
+    createdAt: String(r.created_at ?? ''),
+  }
+}
+
+export async function fetchPhraseGroups(): Promise<PhraseGroup[]> {
+  const resp = await fetch(`${API_BASE}/phrase-groups`, { headers })
+  if (!resp.ok) throw new Error(`Fetch phrase groups failed: ${resp.status}`)
+  const json = await resp.json() as { items: Record<string, unknown>[] }
+  return json.items.map(mapPhraseGroup)
+}
+
+export async function savePhraseGroup(group: {
+  japanese: string
+  alternatives: Alternative[]
+}): Promise<PhraseGroup> {
+  const resp = await fetch(`${API_BASE}/phrase-groups`, {
+    method: 'POST',
+    headers: { ...headers, 'Content-Type': 'application/json' },
+    body: JSON.stringify(group),
+  })
+  if (!resp.ok) throw new Error(`Save phrase group failed: ${resp.status}`)
+  return mapPhraseGroup(await resp.json() as Record<string, unknown>)
+}
+
+export interface GroupReviewResponse {
+  group: PhraseGroup
+  remaining_due: number
+  streak: number
+  streak_updated: boolean
+}
+
+export async function reviewPhraseGroup(groupId: string, quality: number): Promise<GroupReviewResponse> {
+  const resp = await fetch(`${API_BASE}/phrase-groups/${groupId}/review`, {
+    method: 'POST',
+    headers: { ...headers, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ quality }),
+  })
+  if (!resp.ok) throw new Error(`Review group failed: ${resp.status}`)
+  const raw = await resp.json() as { group: Record<string, unknown>; remaining_due: number; streak: number; streak_updated: boolean }
+  return { ...raw, group: mapPhraseGroup(raw.group) }
+}
+
+export async function addAlternative(groupId: string, alternative: {
+  text: string
+  note?: string
+  verb_id?: string
+  register?: Alternative['register']
+}): Promise<PhraseGroup> {
+  const resp = await fetch(`${API_BASE}/phrase-groups/${groupId}/alternatives`, {
+    method: 'POST',
+    headers: { ...headers, 'Content-Type': 'application/json' },
+    body: JSON.stringify(alternative),
+  })
+  if (!resp.ok) throw new Error(`Add alternative failed: ${resp.status}`)
+  return mapPhraseGroup(await resp.json() as Record<string, unknown>)
 }
 
 export async function updateVerb(verb: Verb): Promise<Verb> {

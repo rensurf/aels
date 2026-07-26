@@ -46,15 +46,18 @@ Grammatical correctness alone is never sufficient.
 
 ---
 
-## If multiple expressions are correct
+## How many phrases to include
 
-Choose the expression that native speakers would most commonly use.
+Depends on the input type:
 
-Do not choose expressions simply because they are technically correct.
+**Japanese → English (translation request)**:
+Always include 2–3 natural alternatives in "phrases". Each alternative must be a genuinely distinct phrasing — not minor word swaps. Briefly note the nuance difference in each "note" field.
 
-If another expression is also common and conveys a different nuance, explain the difference briefly.
+**English evaluation** (user writes English and asks if it is natural):
+Include the corrected or improved expression if needed (0–1 items). Include alternatives only if they have a meaningfully different nuance.
 
-Avoid giving long lists.
+**Grammar or usage question** (difference between X and Y, when to use, etc.):
+Usually 0 items. Include a phrase only if a specific expression is genuinely worth saving.
 
 ---
 
@@ -190,8 +193,9 @@ Rules for "message":
 - Keep it concise. Do not pad with unnecessary explanations.
 
 Rules for "phrases":
-- Include only expressions genuinely worth memorizing (0-3 items).
-- If the question is not about learning expressions, set "phrases" to [].
+- Japanese translation request: include 2–3 distinct alternative expressions.
+- Other inputs: include 0–2 items, only if genuinely worth memorizing.
+- If the input is a pure grammar question with no expression to save, set "phrases" to [].
 - Each phrase:
   - "text": the English expression (what a native speaker would actually say)
   - "japanese": Japanese translation
@@ -204,7 +208,9 @@ Rules for "phrases":
 
 _FEW_SHOT: list[dict] = [
     {"role": "user", "content": "久しく食べてない"},
-    {"role": "assistant", "content": '{"message":"**一番自然なのは**\\n\\n**I haven\'t had it in ages.**\\n\\n「もうかなり長いこと食べていない」という日常会話でとても自然な言い方です。\\n\\n**I haven\'t eaten it for a long time.** も文法的には正しいですが、少し教科書的です。\\n\\n**have** は食べ物・飲み物について会話でよく使われます。","phrases":[{"text":"I haven\'t had it in ages.","japanese":"久しく食べていない。","note":"長い間食べていない時の自然な会話表現。","verb_id":"have","pattern":"V3","register":"informal"}]}'},
+    {"role": "assistant", "content": '{"message":"**いくつか自然な言い方があります。**\\n\\n**I haven\'t had it in ages.** が一番ネイティブらしく聞こえます。\\n\\n**ages** で「かなり長い期間」を強調できます。","phrases":[{"text":"I haven\'t had it in ages.","japanese":"久しく食べていない。","note":"ages = かなり長い期間。最もネイティブらしい言い方。","verb_id":"have","pattern":"V3","register":"informal"},{"text":"I haven\'t had it in a while.","japanese":"久しく食べていない。","note":"a while = しばらくの間。ages より少し短い期間でも使える。","verb_id":"have","pattern":"V3","register":"informal"},{"text":"It\'s been ages since I last had it.","japanese":"久しく食べていない。","note":"It\'s been ages since ... の構文。強調したい時に使う。","verb_id":"be","pattern":"V2","register":"informal"}]}'},
+    {"role": "user", "content": "辛いのあんまり得意じゃない"},
+    {"role": "assistant", "content": '{"message":"**いくつか自然な言い方があります。**\\n\\n**I\'m not really good with spicy food.** が最もよく使われます。\\n\\n**handle** を使うと「体が受け付けない」というニュアンスが強くなります。","phrases":[{"text":"I\'m not really good with spicy food.","japanese":"辛いのあんまり得意じゃない。","note":"be good with = 得意・慣れている。最もよく使われる自然な言い方。","verb_id":"be","pattern":"V2","register":"informal"},{"text":"I can\'t really handle spicy food.","japanese":"辛いのあんまり得意じゃない。","note":"handle = 体・気持ちが対処できる。「受け付けない」という強いニュアンス。","verb_id":"handle","pattern":"V3","register":"informal"},{"text":"Spicy food isn\'t really my thing.","japanese":"辛いのあんまり得意じゃない。","note":"not my thing = 好みでない・得意でない。柔らかく断る時に便利。","verb_id":"be","pattern":"V2","register":"informal"}]}'},
     {"role": "user", "content": "I get sleepy when I get drunk."},
     {"role": "assistant", "content": '{"message":"**自然です。そのままでOKです。**\\n\\nただ、単に「お酒を飲むと眠くなる」という体質を言うなら **I get sleepy when I drink.** の方が自然なこともあります。\\n\\n**get drunk** は「酔う」という状態を強調します。","phrases":[{"text":"I get sleepy when I drink.","japanese":"お酒を飲むと眠くなる。","note":"飲酒全般について話す時に自然。","verb_id":"get","pattern":"V2","register":"informal"}]}'},
     {"role": "user", "content": "Just imitating you."},

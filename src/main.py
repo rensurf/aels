@@ -5,6 +5,7 @@ from decimal import Decimal
 from src.config import (
     DYNAMODB_SESSION_TABLE, TELEGRAM_BOT_TOKEN, SQS_WORKER_QUEUE_URL,
     DYNAMODB_PHRASES_TABLE, DYNAMODB_VERBS_TABLE, DYNAMODB_THREADS_TABLE, DYNAMODB_STATS_TABLE,
+    DYNAMODB_PHRASE_GROUPS_TABLE,
     WEB_API_KEY, WEB_USER_ID,
     COSMOS_ENDPOINT, COSMOS_KEY, COSMOS_DATABASE, COSMOS_GRAPH,
 )
@@ -18,6 +19,7 @@ from src.db.phrases import PhrasesClient
 from src.db.verbs import VerbsClient
 from src.db.threads import ThreadsClient
 from src.db.stats import StatsClient
+from src.db.phrase_groups import PhraseGroupsClient
 from src.tools.verb_tool import generate_verb_patterns
 from src.tools.chat_tool import chat_with_teacher
 from src.tools.analyze_tool import analyze_phrase
@@ -27,6 +29,7 @@ phrases_client = PhrasesClient(table_name=DYNAMODB_PHRASES_TABLE)
 verbs_client = VerbsClient(table_name=DYNAMODB_VERBS_TABLE)
 threads_client = ThreadsClient(table_name=DYNAMODB_THREADS_TABLE)
 stats_client = StatsClient(table_name=DYNAMODB_STATS_TABLE)
+phrase_groups_client = PhraseGroupsClient(table_name=DYNAMODB_PHRASE_GROUPS_TABLE)
 sqs = boto3.client("sqs", region_name="ap-southeast-2")
 _graph = GremlinClient(
     endpoint=COSMOS_ENDPOINT,
@@ -453,7 +456,9 @@ def _handle_post_phrase_review(event: dict) -> dict:
 
         from datetime import date as _date
         today = _date.today().isoformat()
-        remaining = phrases_client.get_due_count(user_id=WEB_USER_ID, due_before=today)
+        remaining_phrases = phrases_client.get_due_count(user_id=WEB_USER_ID, due_before=today)
+        remaining_groups = phrase_groups_client.get_due_count(user_id=WEB_USER_ID, due_before=today)
+        remaining = remaining_phrases + remaining_groups
         if remaining == 0:
             stats = stats_client.try_complete_day(user_id=WEB_USER_ID)
             streak_updated = True
@@ -469,6 +474,106 @@ def _handle_post_phrase_review(event: dict) -> dict:
         })
     except Exception as e:
         print(f"[POST /phrases/review] error: {e}")
+        return _json_response(500, {"error": str(e)})
+
+
+def _handle_get_phrase_groups(event: dict) -> dict:
+    if not _authorized(event):
+        return _json_response(401, {"error": "Unauthorized"})
+    if not WEB_USER_ID:
+        return _json_response(503, {"error": "WEB_USER_ID not configured"})
+    try:
+        items = phrase_groups_client.list_groups(user_id=WEB_USER_ID)
+        return _json_response(200, {"items": items})
+    except Exception as e:
+        print(f"[GET /phrase-groups] error: {e}")
+        return _json_response(500, {"error": str(e)})
+
+
+def _handle_post_phrase_groups(event: dict) -> dict:
+    if not _authorized(event):
+        return _json_response(401, {"error": "Unauthorized"})
+    if not WEB_USER_ID:
+        return _json_response(503, {"error": "WEB_USER_ID not configured"})
+    try:
+        body = json.loads(event.get("body") or "{}")
+        japanese = body.get("japanese", "").strip()
+        alternatives = body.get("alternatives", [])
+        if not japanese or not alternatives:
+            return _json_response(400, {"error": "japanese and alternatives are required"})
+        saved = phrase_groups_client.put_group(
+            user_id=WEB_USER_ID,
+            japanese=japanese,
+            alternatives=alternatives,
+        )
+        return _json_response(201, saved)
+    except Exception as e:
+        print(f"[POST /phrase-groups] error: {e}")
+        return _json_response(500, {"error": str(e)})
+
+
+def _handle_post_phrase_group_review(event: dict) -> dict:
+    if not _authorized(event):
+        return _json_response(401, {"error": "Unauthorized"})
+    if not WEB_USER_ID:
+        return _json_response(503, {"error": "WEB_USER_ID not configured"})
+    try:
+        group_id = (event.get("pathParameters") or {}).get("group_id", "")
+        body = json.loads(event.get("body") or "{}")
+        quality = int(body.get("quality", 0))
+        if not 0 <= quality <= 5:
+            return _json_response(400, {"error": "quality must be 0-5"})
+
+        updated = phrase_groups_client.update_sm2(user_id=WEB_USER_ID, group_id=group_id, quality=quality)
+
+        from datetime import date as _date
+        today = _date.today().isoformat()
+        remaining_phrases = phrases_client.get_due_count(user_id=WEB_USER_ID, due_before=today)
+        remaining_groups = phrase_groups_client.get_due_count(user_id=WEB_USER_ID, due_before=today)
+        remaining = remaining_phrases + remaining_groups
+        if remaining == 0:
+            stats = stats_client.try_complete_day(user_id=WEB_USER_ID)
+            streak_updated = True
+        else:
+            stats = stats_client.get_stats(user_id=WEB_USER_ID)
+            streak_updated = False
+
+        return _json_response(200, {
+            "group": updated,
+            "remaining_due": remaining,
+            "streak": stats["current_streak"],
+            "streak_updated": streak_updated,
+        })
+    except Exception as e:
+        print(f"[POST /phrase-groups/review] error: {e}")
+        return _json_response(500, {"error": str(e)})
+
+
+def _handle_post_phrase_group_alternative(event: dict) -> dict:
+    if not _authorized(event):
+        return _json_response(401, {"error": "Unauthorized"})
+    if not WEB_USER_ID:
+        return _json_response(503, {"error": "WEB_USER_ID not configured"})
+    try:
+        group_id = (event.get("pathParameters") or {}).get("group_id", "")
+        body = json.loads(event.get("body") or "{}")
+        text = body.get("text", "").strip()
+        if not text:
+            return _json_response(400, {"error": "text is required"})
+        alternative = {
+            "text": text,
+            "note": body.get("note", ""),
+            "verb_id": body.get("verb_id", ""),
+            "register": body.get("register", "informal"),
+        }
+        updated = phrase_groups_client.add_alternative(
+            user_id=WEB_USER_ID, group_id=group_id, alternative=alternative
+        )
+        if updated is None:
+            return _json_response(404, {"error": "Group not found"})
+        return _json_response(200, updated)
+    except Exception as e:
+        print(f"[POST /phrase-groups/alternatives] error: {e}")
         return _json_response(500, {"error": str(e)})
 
 
@@ -528,6 +633,14 @@ def lambda_handler(event, context):
         return _handle_get_thread(event)
     if route_key == "GET /stats":
         return _handle_get_stats(event)
+    if route_key == "GET /phrase-groups":
+        return _handle_get_phrase_groups(event)
+    if route_key == "POST /phrase-groups":
+        return _handle_post_phrase_groups(event)
+    if route_key == "POST /phrase-groups/{group_id}/review":
+        return _handle_post_phrase_group_review(event)
+    if route_key == "POST /phrase-groups/{group_id}/alternatives":
+        return _handle_post_phrase_group_alternative(event)
 
     body = json.loads(event["body"])
 

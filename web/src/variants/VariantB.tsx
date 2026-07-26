@@ -1,7 +1,7 @@
 import { useState } from 'react'
-import type { Phrase, Verb, Register, PhraseType } from '../types'
+import type { Phrase, Verb, Register, PhraseType, PhraseGroup } from '../types'
 import { getStrengthColor, getStrengthLabel, today } from '../utils'
-import { analyzePhrase, savePhrase, updatePhrase } from '../api'
+import { analyzePhrase, savePhrase, updatePhrase, addAlternative, analyzePhrase as analyzeAlt } from '../api'
 import type { AnalyzeResponse } from '../api'
 
 type DueFilter = 'all' | 'due' | 'ok'
@@ -33,11 +33,13 @@ interface EditState {
 interface Props {
   verbs: Verb[]
   phrases: Phrase[]
+  phraseGroups: PhraseGroup[]
   onPhrasesAdded: (phrases: Phrase[]) => void
   onPhraseUpdated: (phrase: Phrase) => void
+  onGroupUpdated: (group: PhraseGroup) => void
 }
 
-export function VariantB({ verbs, phrases, onPhrasesAdded, onPhraseUpdated }: Props) {
+export function VariantB({ verbs, phrases, phraseGroups, onPhrasesAdded, onPhraseUpdated, onGroupUpdated }: Props) {
   const [verbFilter, setVerbFilter] = useState('all')
   const [patternFilter, setPatternFilter] = useState('all')
   const [typeFilter, setTypeFilter] = useState<'all' | PhraseType>('all')
@@ -56,6 +58,15 @@ export function VariantB({ verbs, phrases, onPhrasesAdded, onPhraseUpdated }: Pr
   const [qaResult, setQaResult] = useState<AnalyzeResponse | null>(null)
   const [qaError, setQaError] = useState<string | null>(null)
   const [qaSaving, setQaSaving] = useState(false)
+
+  // Add alternative state
+  const [addingGroupId, setAddingGroupId] = useState<string | null>(null)
+  const [addAltInput, setAddAltInput] = useState('')
+  const [addAltAnalyzing, setAddAltAnalyzing] = useState(false)
+  const [addAltResult, setAddAltResult] = useState<AnalyzeResponse | null>(null)
+  const [addAltSaving, setAddAltSaving] = useState(false)
+  const [addAltError, setAddAltError] = useState<string | null>(null)
+  const [expandedGroupId, setExpandedGroupId] = useState<string | null>(null)
 
   const NOW = today()
   const dueToday = phrases.filter(p => p.dueDate <= NOW)
@@ -115,6 +126,43 @@ export function VariantB({ verbs, phrases, onPhrasesAdded, onPhraseUpdated }: Pr
 
   function handleQuickAddKeyDown(e: React.KeyboardEvent) {
     if (e.key === 'Enter') { e.preventDefault(); void handleAnalyze() }
+  }
+
+  async function handleAddAltAnalyze() {
+    const text = addAltInput.trim()
+    if (!text) return
+    setAddAltAnalyzing(true)
+    setAddAltResult(null)
+    setAddAltError(null)
+    try {
+      const result = await analyzeAlt(text)
+      setAddAltResult(result)
+    } catch {
+      setAddAltError('分析に失敗しました。')
+    } finally {
+      setAddAltAnalyzing(false)
+    }
+  }
+
+  async function handleAddAltSave(groupId: string) {
+    if (!addAltResult) return
+    setAddAltSaving(true)
+    try {
+      const updated = await addAlternative(groupId, {
+        text: addAltInput.trim(),
+        note: addAltResult.note,
+        verb_id: addAltResult.verb_id,
+        register: addAltResult.register,
+      })
+      onGroupUpdated(updated)
+      setAddingGroupId(null)
+      setAddAltInput('')
+      setAddAltResult(null)
+    } catch {
+      setAddAltError('保存に失敗しました。')
+    } finally {
+      setAddAltSaving(false)
+    }
   }
 
   function startEdit(phrase: Phrase) {
@@ -397,6 +445,97 @@ export function VariantB({ verbs, phrases, onPhrasesAdded, onPhraseUpdated }: Pr
             </div>
           )}
         </div>
+
+        {/* Phrase Groups section */}
+        {phraseGroups.length > 0 && (
+          <div style={{ marginTop: 32 }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: '#0f172a', marginBottom: 12, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+              Phrase Groups <span style={{ fontWeight: 400, color: '#94a3b8', fontSize: 12 }}>({phraseGroups.length})</span>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {phraseGroups.map(group => (
+                <div key={group.id} style={{ background: '#fff', borderRadius: 10, border: '1px solid #e2e8f0', overflow: 'hidden' }}>
+                  {/* Group header */}
+                  <div
+                    onClick={() => setExpandedGroupId(expandedGroupId === group.id ? null : group.id)}
+                    style={{ padding: '12px 14px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 10 }}
+                  >
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: 14, color: '#0f172a', fontWeight: 600 }}>{group.japanese}</div>
+                      <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 2 }}>
+                        {group.alternatives.length}件の表現
+                        {group.dueDate <= NOW && <span style={{ color: '#ef4444', marginLeft: 8 }}>● due</span>}
+                      </div>
+                    </div>
+                    <span style={{ fontSize: 12, color: '#94a3b8' }}>{expandedGroupId === group.id ? '▲' : '▼'}</span>
+                  </div>
+
+                  {/* Alternatives list */}
+                  {expandedGroupId === group.id && (
+                    <div style={{ borderTop: '1px solid #f1f5f9' }}>
+                      {group.alternatives.map((alt, i) => (
+                        <div key={i} style={{ padding: '10px 14px', borderBottom: '1px solid #f8fafc' }}>
+                          <div style={{ fontSize: 14, color: '#1e293b' }}>{alt.text}</div>
+                          {alt.note && <div style={{ fontSize: 12, color: '#64748b', marginTop: 3 }}>{alt.note}</div>}
+                        </div>
+                      ))}
+
+                      {/* Add alternative */}
+                      {addingGroupId === group.id ? (
+                        <div style={{ padding: '12px 14px', background: '#f8faff', borderTop: '1px solid #e2e8f0' }}>
+                          <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+                            <input
+                              value={addAltInput}
+                              onChange={e => setAddAltInput(e.target.value)}
+                              onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); void handleAddAltAnalyze() } }}
+                              placeholder="新しい英語表現を入力..."
+                              style={{ flex: 1, padding: '7px 10px', borderRadius: 6, border: '1px solid #e2e8f0', fontSize: 13, outline: 'none' }}
+                              autoFocus
+                            />
+                            <button
+                              onClick={() => void handleAddAltAnalyze()}
+                              disabled={addAltAnalyzing || !addAltInput.trim()}
+                              style={{ padding: '7px 14px', borderRadius: 6, border: 'none', background: '#6366f1', color: '#fff', fontSize: 13, cursor: 'pointer' }}
+                            >
+                              {addAltAnalyzing ? '...' : '分析'}
+                            </button>
+                            <button
+                              onClick={() => { setAddingGroupId(null); setAddAltInput(''); setAddAltResult(null) }}
+                              style={{ padding: '7px 10px', borderRadius: 6, border: '1px solid #e2e8f0', background: '#fff', fontSize: 13, cursor: 'pointer', color: '#64748b' }}
+                            >✕</button>
+                          </div>
+                          {addAltResult && (
+                            <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, padding: '10px 12px', marginBottom: 8 }}>
+                              <div style={{ fontSize: 13, color: '#0f172a' }}>{addAltInput.trim()}</div>
+                              <div style={{ fontSize: 12, color: '#64748b', marginTop: 4 }}>{addAltResult.note}</div>
+                              <button
+                                onClick={() => void handleAddAltSave(group.id)}
+                                disabled={addAltSaving}
+                                style={{ marginTop: 8, width: '100%', padding: '7px', borderRadius: 6, border: 'none', background: '#6366f1', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
+                              >
+                                {addAltSaving ? '保存中...' : 'グループに追加'}
+                              </button>
+                            </div>
+                          )}
+                          {addAltError && <div style={{ fontSize: 12, color: '#ef4444' }}>{addAltError}</div>}
+                        </div>
+                      ) : (
+                        <div style={{ padding: '10px 14px', borderTop: '1px solid #f1f5f9' }}>
+                          <button
+                            onClick={() => { setAddingGroupId(group.id); setAddAltInput(''); setAddAltResult(null); setAddAltError(null) }}
+                            style={{ fontSize: 12, color: '#6366f1', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+                          >
+                            + 代替フレーズを追加
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )
