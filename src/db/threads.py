@@ -36,6 +36,6 @@ class ThreadsClient:
     def append_messages(self, user_id: str, thread_id: str, new_messages: list[dict]) -> None:
         self._table.update_item(
             Key={"user_id": user_id, "thread_id": thread_id},
-            UpdateExpression="SET messages = list_append(messages, :msgs)",
-            ExpressionAttributeValues={":msgs": new_messages},
+            UpdateExpression="SET messages = list_append(if_not_exists(messages, :empty), :msgs)",
+            ExpressionAttributeValues={":msgs": new_messages, ":empty": []},
         )

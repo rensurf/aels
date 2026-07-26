@@ -205,7 +205,7 @@ SK: verb_id
 | 3 | S3 + CloudFront Terraform + Web UI 本実装 | ✅ 完了 | `024dfac`, `306bfcf` |
 | 4 | Verb 登録 API + UI | ✅ 完了 | — |
 | 5 | Chat 書き込み API（POST /phrases・POST /chat）+ VariantD 実 API 接続 | ✅ 完了 | — |
-| 6 | Chat スレッド管理（履歴保持・スレッド切り替え） | 🔲 次にやる | — |
+| 6 | Chat スレッド管理（履歴保持・スレッド切り替え） | ✅ 完了 | `2b40785` |
 | 7 | CosmosDB → DynamoDB 移行スクリプト | 🔲 後回し | — |
 
 ---
@@ -432,10 +432,45 @@ VariantD の「チェックして保存」フローを実際の API に接続す
 
 ---
 
+## ストリーク機能 ✅（実装済み）
+
+### 概要
+
+- `aels-user-stats` DynamoDB テーブル（PK: user_id）に streak / best_streak / last_completed_date / completed_dates（日付 Set）を保存
+- `POST /phrases/{phrase_id}/review`：SM-2 更新 → 残 due 件数チェック → 0 件なら `try_complete_day()` でストリーク更新
+- `GET /stats`：streak / best_streak / completed_dates を返却
+- VariantC（Daily Focus）に「✓ 覚えた」「✗ もう一度」ボタンを実 API に接続
+- ヘッダーに 🔥 N日表示、完了画面に GitHub 風カレンダー（過去 12 週）
+
+### SM-2 quality マッピング
+
+| ボタン | quality |
+|---|---|
+| ✓ 覚えた | 4 |
+| ✗ もう一度 | 1 |
+
+---
+
+## verb_tool 改善 ✅（実装済み）
+
+- モデルを `gpt-4o` → `o4-mini`（`reasoning_effort="low"`）に変更
+- OALD を明示参照するプロンプトに改訂
+- `prepare` の few-shot 例を追加
+- CRITICAL RULES に追加：
+  - `V + O + adj/過去分詞` → V5（O=C 関係のテスト）
+  - OALD に記載のない V4 は出力しない
+
+---
+
+## due_date 修正 ✅（実装済み）
+
+登録当日ではなく翌日（`date.today() + timedelta(days=1)`）から復習に出るよう変更。
+
+---
+
 ## 保留・後回し
 
 - CosmosDB Gremlin → DynamoDB 移行（既存100フレーズ）
-- ストリーク機能
 - Telegram Mini App 埋め込み
 - domain プロパティ（読書語彙の分離）
 - セッション履歴の自動トリミング
