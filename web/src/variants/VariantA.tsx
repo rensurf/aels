@@ -613,8 +613,8 @@ function VerbDetail({ verb, phrases, onUpdated, onDeleted }: {
               {verb.adjForm && <span style={{ fontSize: 14, color: '#64748b' }}>形容詞: <em>{verb.adjForm}</em></span>}
             </div>
             <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
-              {verb.patterns.map(vp => (
-                <span key={vp.code} style={{ padding: '4px 10px', borderRadius: 999, fontSize: 12, fontWeight: 600, background: patternColor(vp.code) + '22', color: patternColor(vp.code), border: `1px solid ${patternColor(vp.code)}44` }}>{vp.code}</span>
+              {[...new Set(verb.patterns.map(vp => vp.code))].map(code => (
+                <span key={code} style={{ padding: '4px 10px', borderRadius: 999, fontSize: 12, fontWeight: 600, background: patternColor(code) + '22', color: patternColor(code), border: `1px solid ${patternColor(code)}44` }}>{code}</span>
               ))}
             </div>
           </div>
@@ -647,33 +647,37 @@ function VerbDetail({ verb, phrases, onUpdated, onDeleted }: {
         </div>
       )}
 
-      {/* Patterns */}
+      {/* Patterns — grouped by code so V1×6 collapses to one V1 block */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-        {verb.patterns.map((vp: VerbPattern) => {
-          const patternPhrases = phrases.filter(p => p.pattern === vp.code)
-          const color = patternColor(vp.code)
+        {Object.entries(
+          verb.patterns.reduce<Record<string, VerbPattern[]>>((acc, vp) => {
+            ;(acc[vp.code] ??= []).push(vp)
+            return acc
+          }, {})
+        ).map(([code, senses]) => {
+          const patternPhrases = phrases.filter(p => p.verbId === verb.id && p.pattern === code)
+          const color = patternColor(code)
           return (
-            <div key={vp.code} style={{ background: '#1e293b', borderRadius: 12, overflow: 'hidden', border: `1px solid ${color}33` }}>
+            <div key={code} style={{ background: '#1e293b', borderRadius: 12, overflow: 'hidden', border: `1px solid ${color}33` }}>
+              {/* Header */}
               <div style={{ padding: '12px 20px', borderBottom: `1px solid ${color}33`, background: color + '11', display: 'flex', alignItems: 'center', gap: 10 }}>
-                <span style={{ fontWeight: 700, color, fontSize: 13 }}>{vp.code}</span>
-                <span style={{ color: '#94a3b8', fontSize: 13 }}>{vp.description}</span>
+                <span style={{ fontWeight: 700, color, fontSize: 13 }}>{code}</span>
               </div>
 
-              {/* Examples from the verb definition */}
-              {vp.examples.length > 0 && (
-                <div style={{ padding: '10px 20px 0', display: 'flex', flexDirection: 'column', gap: 2 }}>
-                  {vp.examples.filter(ex => ex.trim()).map((ex, i) => (
-                    <div key={i} style={{ fontSize: 13, color: '#64748b', fontStyle: 'italic' }}>"{ex}"</div>
-                  ))}
-                </div>
-              )}
-
-              {/* Memo */}
-              {vp.memo && (
-                <div style={{ padding: '8px 20px 0' }}>
-                  <div style={{ fontSize: 12, color: '#475569', background: '#0f172a', padding: '6px 10px', borderRadius: 6 }}>{vp.memo}</div>
-                </div>
-              )}
+              {/* Senses — each with description + examples */}
+              <div style={{ padding: '12px 20px 0', display: 'flex', flexDirection: 'column', gap: 14 }}>
+                {senses.map((vp, si) => (
+                  <div key={si}>
+                    <div style={{ fontSize: 13, color: '#94a3b8', marginBottom: 4 }}>{vp.description}</div>
+                    {vp.examples.filter(ex => ex.trim()).map((ex, i) => (
+                      <div key={i} style={{ fontSize: 13, color: '#64748b', fontStyle: 'italic' }}>"{ex}"</div>
+                    ))}
+                    {vp.memo && (
+                      <div style={{ marginTop: 6, fontSize: 12, color: '#475569', background: '#0f172a', padding: '6px 10px', borderRadius: 6 }}>{vp.memo}</div>
+                    )}
+                  </div>
+                ))}
+              </div>
 
               {/* Saved phrases */}
               {patternPhrases.length === 0 ? (
