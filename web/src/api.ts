@@ -1,4 +1,4 @@
-import type { Phrase, Verb, PhraseType, Alternative } from './types'
+import type { Phrase, Verb, PhraseType, Alternative, PhrasalVerb } from './types'
 
 const API_BASE = (import.meta.env.VITE_API_BASE_URL as string) ?? ''
 const API_KEY = (import.meta.env.VITE_API_KEY as string) ?? ''
@@ -26,12 +26,19 @@ function mapPhrase(r: Record<string, unknown>): Phrase {
 }
 
 function mapVerb(r: Record<string, unknown>): Verb {
+  const rawPatterns = (r.patterns as Verb['patterns']) ?? []
   return {
     id: String(r.verb_id),
     base: String(r.base),
-    patterns: (r.patterns as Verb['patterns']) ?? [],
+    patterns: rawPatterns.map(p => ({ ...p, examples: p.examples ?? [] })),
     confusableWith: (r.confusable_with as string[]) ?? [],
     similarTo: (r.similar_to as string[]) ?? [],
+    phrasalVerbs: ((r.phrasal_verbs as PhrasalVerb[]) ?? []).map(pv => ({
+      phrase: pv.phrase ?? '',
+      pattern: pv.pattern ?? '',
+      definition: pv.definition ?? '',
+      example: pv.example ?? '',
+    })),
     nounForm: r.noun_form != null ? String(r.noun_form) : undefined,
     adjForm: r.adj_form != null ? String(r.adj_form) : undefined,
   }
@@ -201,6 +208,14 @@ export async function addAlternativeToPhrase(phraseId: string, alternative: {
   return mapPhrase(await resp.json() as Record<string, unknown>)
 }
 
+export async function deletePhrase(phraseId: string): Promise<void> {
+  const resp = await fetch(`${API_BASE}/phrases/${phraseId}`, {
+    method: 'DELETE',
+    headers,
+  })
+  if (!resp.ok) throw new Error(`Failed to delete phrase: ${resp.status}`)
+}
+
 export async function analyzePhrase(text: string): Promise<AnalyzeResponse> {
   const resp = await fetch(`${API_BASE}/analyze`, {
     method: 'POST',
@@ -248,6 +263,7 @@ export async function updateVerb(verb: Verb): Promise<Verb> {
     patterns: verb.patterns,
     confusable_with: verb.confusableWith,
     similar_to: verb.similarTo,
+    phrasal_verbs: verb.phrasalVerbs,
   }
   if (verb.nounForm) body.noun_form = verb.nounForm
   if (verb.adjForm) body.adj_form = verb.adjForm

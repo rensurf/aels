@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import type { Phrase, Verb, Register, PhraseType } from '../types'
 import { getStrengthColor, getStrengthLabel, today } from '../utils'
-import { analyzePhrase, savePhrase, updatePhrase, addAlternativeToPhrase } from '../api'
+import { analyzePhrase, savePhrase, updatePhrase, addAlternativeToPhrase, deletePhrase } from '../api'
 import type { AnalyzeResponse } from '../api'
 
 type DueFilter = 'all' | 'due' | 'ok'
@@ -35,9 +35,10 @@ interface Props {
   phrases: Phrase[]
   onPhrasesAdded: (phrases: Phrase[]) => void
   onPhraseUpdated: (phrase: Phrase) => void
+  onPhraseDeleted: (phraseId: string) => void
 }
 
-export function VariantB({ verbs, phrases, onPhrasesAdded, onPhraseUpdated }: Props) {
+export function VariantB({ verbs, phrases, onPhrasesAdded, onPhraseUpdated, onPhraseDeleted }: Props) {
   const [verbFilter, setVerbFilter] = useState('all')
   const [patternFilter, setPatternFilter] = useState('all')
   const [typeFilter, setTypeFilter] = useState<'all' | PhraseType>('all')
@@ -198,6 +199,16 @@ export function VariantB({ verbs, phrases, onPhrasesAdded, onPhraseUpdated }: Pr
     }
   }
 
+  async function handleDelete(phraseId: string, text: string) {
+    if (!window.confirm(`「${text}」を削除しますか？`)) return
+    try {
+      await deletePhrase(phraseId)
+      onPhraseDeleted(phraseId)
+    } catch {
+      alert('削除に失敗しました。')
+    }
+  }
+
   return (
     <div style={{ minHeight: '100vh', background: '#f8fafc', fontFamily: 'system-ui, sans-serif' }}>
       <div style={{ background: '#fff', borderBottom: '1px solid #e2e8f0', padding: '16px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -284,7 +295,7 @@ export function VariantB({ verbs, phrases, onPhrasesAdded, onPhraseUpdated }: Pr
         </div>
       )}
 
-      <div style={{ maxWidth: 900, margin: '0 auto', padding: '24px 16px' }}>
+      <div style={{ maxWidth: 900, margin: '0 auto', padding: '24px 16px 100px' }}>
         {/* Summary */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: 24 }}>
           <SummaryCard label="保存済み" value={phrases.length} unit="phrases" color="#3b82f6" />
@@ -452,6 +463,12 @@ export function VariantB({ verbs, phrases, onPhrasesAdded, onPhraseUpdated }: Pr
                           style={{ fontSize: 12, color: '#64748b', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
                         >
                           編集
+                        </button>
+                        <button
+                          onClick={() => void handleDelete(phrase.id, phrase.text)}
+                          style={{ fontSize: 12, color: '#ef4444', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+                        >
+                          削除
                         </button>
                       </div>
                     )}

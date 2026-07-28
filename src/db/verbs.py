@@ -32,6 +32,7 @@ class VerbsClient:
             "patterns": verb.get("patterns", []),
             "confusable_with": verb.get("confusable_with", []),
             "similar_to": verb.get("similar_to", []),
+            "phrasal_verbs": verb.get("phrasal_verbs", []),
             "created_at": verb.get("created_at", datetime.now(timezone.utc).isoformat()),
         }
         if verb.get("noun_form"):

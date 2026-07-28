@@ -125,6 +125,9 @@ class PhrasesClient:
         resp = self.table.get_item(Key={"user_id": user_id, "phrase_id": phrase_id})
         return _normalize(resp["Item"])
 
+    def delete_phrase(self, user_id: str, phrase_id: str) -> None:
+        self.table.delete_item(Key={"user_id": user_id, "phrase_id": phrase_id})
+
     def update_phrase(self, user_id: str, phrase_id: str, updates: dict) -> dict | None:
         set_parts: list[str] = []
         remove_parts: list[str] = []

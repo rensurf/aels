@@ -41,6 +41,12 @@ resource "aws_apigatewayv2_route" "put_phrase" {
   target    = "integrations/${aws_apigatewayv2_integration.lambda.id}"
 }
 
+resource "aws_apigatewayv2_route" "delete_phrase" {
+  api_id    = aws_apigatewayv2_api.aels.id
+  route_key = "DELETE /phrases/{phrase_id}"
+  target    = "integrations/${aws_apigatewayv2_integration.lambda.id}"
+}
+
 resource "aws_apigatewayv2_route" "post_chat" {
   api_id    = aws_apigatewayv2_api.aels.id
   route_key = "POST /chat"

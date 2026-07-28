@@ -33,12 +33,20 @@ export interface Phrase {
   alternatives?: Alternative[]
 }
 
+export interface PhrasalVerb {
+  phrase: string
+  pattern: string
+  definition: string
+  example: string
+}
+
 export interface Verb {
   id: string
   base: string
   patterns: VerbPattern[]
   confusableWith: string[]
   similarTo: string[]
+  phrasalVerbs: PhrasalVerb[]
   nounForm?: string
   adjForm?: string
 }

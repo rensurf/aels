@@ -277,6 +277,20 @@ def _handle_post_verb(event: dict) -> dict:
         return _json_response(500, {"error": str(e)})
 
 
+def _handle_delete_phrase(event: dict) -> dict:
+    if not _authorized(event):
+        return _json_response(401, {"error": "Unauthorized"})
+    if not WEB_USER_ID:
+        return _json_response(503, {"error": "WEB_USER_ID not configured"})
+    try:
+        phrase_id = (event.get("pathParameters") or {}).get("phrase_id", "")
+        phrases_client.delete_phrase(user_id=WEB_USER_ID, phrase_id=phrase_id)
+        return _json_response(200, {"deleted": phrase_id})
+    except Exception as e:
+        print(f"[DELETE /phrases] error: {e}")
+        return _json_response(500, {"error": str(e)})
+
+
 def _handle_delete_verb(event: dict) -> dict:
     if not _authorized(event):
         return _json_response(401, {"error": "Unauthorized"})
@@ -530,6 +544,8 @@ def lambda_handler(event, context):
         return _handle_post_phrase(event)
     if route_key == "PUT /phrases/{phrase_id}":
         return _handle_put_phrase(event)
+    if route_key == "DELETE /phrases/{phrase_id}":
+        return _handle_delete_phrase(event)
     if route_key == "POST /phrases/{phrase_id}/review":
         return _handle_post_phrase_review(event)
     if route_key == "POST /chat":

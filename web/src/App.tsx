@@ -6,10 +6,12 @@ import { VariantB } from './variants/VariantB'
 import { VariantC } from './variants/VariantC'
 import { VariantD } from './variants/VariantD'
 import { NavBar } from './components/NavBar'
+import { useStudyTimer } from './hooks/useStudyTimer'
 
 type View = 'A' | 'B' | 'C' | 'D'
 
 export default function App() {
+  useStudyTimer()
   const [view, setView] = useState<View>('B')
   const [phrases, setPhrases] = useState<Phrase[]>([])
   const [verbs, setVerbs] = useState<Verb[]>([])
@@ -36,6 +38,10 @@ export default function App() {
 
   const handlePhraseUpdated = useCallback((updated: Phrase) => {
     setPhrases(prev => prev.map(p => p.id === updated.id ? updated : p))
+  }, [])
+
+  const handlePhraseDeleted = useCallback((phraseId: string) => {
+    setPhrases(prev => prev.filter(p => p.id !== phraseId))
   }, [])
 
   const handleStreakUpdated = useCallback((newStreak: number, newDates: string[]) => {
@@ -74,7 +80,7 @@ export default function App() {
   return (
     <>
       {view === 'A' && <VariantA verbs={verbs} phrases={phrases} onVerbAdded={handleVerbAdded} onVerbUpdated={handleVerbUpdated} onVerbDeleted={handleVerbDeleted} />}
-      {view === 'B' && <VariantB verbs={verbs} phrases={phrases} onPhrasesAdded={handlePhrasesAdded} onPhraseUpdated={handlePhraseUpdated} />}
+      {view === 'B' && <VariantB verbs={verbs} phrases={phrases} onPhrasesAdded={handlePhrasesAdded} onPhraseUpdated={handlePhraseUpdated} onPhraseDeleted={handlePhraseDeleted} />}
       {view === 'C' && <VariantC phrases={phrases} verbs={verbs} streak={streak} completedDates={completedDates} onPhraseReviewed={handlePhraseUpdated} onStreakUpdated={handleStreakUpdated} />}
       {view === 'D' && <VariantD onPhrasesAdded={handlePhrasesAdded} />}
       <NavBar current={view} onChange={k => setView(k as View)} />

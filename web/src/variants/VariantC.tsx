@@ -2,6 +2,7 @@ import { useState } from 'react'
 import type { Phrase, Verb } from '../types'
 import { reviewPhrase } from '../api'
 import { getStrengthColor, today } from '../utils'
+import { readStudyData } from '../hooks/useStudyTimer'
 
 type CardState = 'front' | 'back'
 
@@ -20,6 +21,7 @@ export function VariantC({ phrases, verbs, streak, completedDates, onPhraseRevie
   const [queue, setQueue] = useState<Phrase[]>(dueItems)
   const [cardState, setCardState] = useState<CardState>('front')
   const [results, setResults] = useState<{ id: string; correct: boolean }[]>([])
+  const [showStats, setShowStats] = useState(false)
 
   const current = queue[0]
   const done = results.length
@@ -58,6 +60,7 @@ export function VariantC({ phrases, verbs, streak, completedDates, onPhraseRevie
       color: '#e2e8f0',
       display: 'flex',
       flexDirection: 'column',
+      paddingBottom: 80,
     }}>
       {/* Header */}
       <div style={{ padding: '20px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -65,14 +68,27 @@ export function VariantC({ phrases, verbs, streak, completedDates, onPhraseRevie
           <div style={{ fontSize: 13, color: '#94a3b8' }}>Today's Session</div>
           <div style={{ fontSize: 20, fontWeight: 700 }}>Good morning, Ren</div>
         </div>
-        <div style={{ textAlign: 'right' }}>
-          {streak > 0 && (
-            <div style={{ fontSize: 18, fontWeight: 700, color: '#f97316', marginBottom: 2 }}>
-              🔥 {streak}日
-            </div>
-          )}
-          <div style={{ fontSize: 20, fontWeight: 700, color: '#ef4444' }}>{total} due</div>
-          <div style={{ fontSize: 12, color: '#94a3b8' }}>phrases today</div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+          <button
+            onClick={() => setShowStats(true)}
+            style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 6, color: '#64748b', display: 'flex', alignItems: 'center', borderRadius: 8 }}
+            title="学習記録"
+          >
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="18" y1="20" x2="18" y2="10" />
+              <line x1="12" y1="20" x2="12" y2="4" />
+              <line x1="6" y1="20" x2="6" y2="14" />
+            </svg>
+          </button>
+          <div style={{ textAlign: 'right' }}>
+            {streak > 0 && (
+              <div style={{ fontSize: 18, fontWeight: 700, color: '#f97316', marginBottom: 2 }}>
+                🔥 {streak}日
+              </div>
+            )}
+            <div style={{ fontSize: 20, fontWeight: 700, color: '#ef4444' }}>{total} due</div>
+            <div style={{ fontSize: 12, color: '#94a3b8' }}>phrases today</div>
+          </div>
         </div>
       </div>
 
@@ -212,115 +228,205 @@ export function VariantC({ phrases, verbs, streak, completedDates, onPhraseRevie
           </div>
         </div>
       )}
+
+      {/* Stats panel */}
+      {showStats && (
+        <StatsPanel streak={streak} completedDates={completedDates} onClose={() => setShowStats(false)} />
+      )}
     </div>
   )
 }
 
-// --- Calendar (GitHub-style) ---
+// --- Stats panel ---
 
-function ReviewCalendar({ completedDates }: { completedDates: string[] }) {
-  const completedSet = new Set(completedDates)
-  const WEEKS = 12
-  const DAYS = 7
-
-  // Build grid: last WEEKS*DAYS days, Mon–Sun rows
-  const today = new Date()
-  const gridDays: { date: string; completed: boolean }[] = []
-  const totalCells = WEEKS * DAYS
-  for (let i = totalCells - 1; i >= 0; i--) {
-    const d = new Date(today)
-    d.setDate(today.getDate() - i)
-    const iso = d.toISOString().slice(0, 10)
-    gridDays.push({ date: iso, completed: completedSet.has(iso) })
-  }
-
-  // Pad front to fill first column from Mon
-  const firstDayMonIdx = (new Date(gridDays[0].date).getDay() + 6) % 7
-  const padFront = firstDayMonIdx  // how many empty cells before first real day
-
-  const CELL = 12
-  const GAP = 3
-  const monthLabels: { label: string; col: number }[] = []
-  let lastMonth = -1
-  gridDays.forEach((d, i) => {
-    const col = Math.floor((i + padFront) / DAYS)
-    const m = new Date(d.date).getMonth()
-    if (m !== lastMonth) {
-      monthLabels.push({ label: new Date(d.date).toLocaleDateString('en-US', { month: 'short' }), col })
-      lastMonth = m
-    }
-  })
+function StatsPanel({ streak, completedDates, onClose }: { streak: number; completedDates: string[]; onClose: () => void }) {
+  const studyData = readStudyData()
 
   return (
-    <div style={{ marginTop: 32 }}>
-      <div style={{ fontSize: 12, color: '#64748b', marginBottom: 10, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
-        Review history
+    <div
+      onClick={onClose}
+      style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'flex-end', zIndex: 100 }}
+    >
+      <div
+        onClick={e => e.stopPropagation()}
+        style={{ width: '100%', maxHeight: '88vh', overflowY: 'auto', background: '#0f172a', borderRadius: '20px 20px 0 0', padding: '20px 20px 48px', border: '1px solid #1e293b' }}
+      >
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+          <div style={{ fontSize: 16, fontWeight: 700, color: '#f1f5f9' }}>学習記録</div>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#64748b', fontSize: 20, cursor: 'pointer', lineHeight: 1, padding: 4 }}>✕</button>
+        </div>
+        <MonthlyCalendar streak={streak} completedDates={completedDates} studyData={studyData} />
       </div>
-      {/* Month labels */}
-      <div style={{ display: 'flex', marginLeft: 0, marginBottom: 4, position: 'relative', height: 16 }}>
-        {monthLabels.map(({ label, col }) => (
-          <span key={`${label}-${col}`} style={{
-            position: 'absolute',
-            left: col * (CELL + GAP),
-            fontSize: 10,
-            color: '#475569',
-          }}>{label}</span>
-        ))}
-      </div>
-      {/* Grid: columns = weeks, rows = Mon-Sun */}
-      <div style={{ display: 'flex', gap: GAP }}>
-        {Array.from({ length: WEEKS }).map((_, weekIdx) => (
-          <div key={weekIdx} style={{ display: 'flex', flexDirection: 'column', gap: GAP }}>
-            {Array.from({ length: DAYS }).map((_, dayIdx) => {
-              const cellIdx = weekIdx * DAYS + dayIdx - padFront
-              const cell = gridDays[cellIdx]
-              if (!cell) {
-                return <div key={dayIdx} style={{ width: CELL, height: CELL }} />
-              }
-              return (
-                <div
-                  key={dayIdx}
-                  title={cell.date}
-                  style={{
-                    width: CELL,
-                    height: CELL,
-                    borderRadius: 2,
-                    background: cell.completed ? '#4f46e5' : '#1e293b',
-                    border: cell.completed ? '1px solid #6366f1' : '1px solid #334155',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    fontSize: 8,
-                    color: cell.completed ? '#a5b4fc' : 'transparent',
-                  }}
-                >
-                  {cell.completed ? '✓' : ''}
-                </div>
-              )
-            })}
+    </div>
+  )
+}
+
+// --- Monthly calendar ---
+
+const DOW = ['日', '月', '火', '水', '木', '金', '土']
+
+function MonthlyCalendar({ streak, completedDates, studyData }: { streak: number; completedDates: string[]; studyData: Record<string, number> }) {
+  const [selectedDay, setSelectedDay] = useState<string | null>(null)
+  const now = new Date()
+  const todayStr = now.toISOString().slice(0, 10)
+  const year = now.getFullYear()
+  const month = now.getMonth()
+  const completedSet = new Set(completedDates)
+
+  const totalMinutes = Object.values(studyData).reduce((s, m) => s + m, 0)
+  const studyDayCount = Object.values(studyData).filter(m => m > 0).length
+  const totalHours = (totalMinutes / 60).toFixed(1)
+
+  // Build month grid
+  const firstDow = new Date(year, month, 1).getDay()
+  const daysInMonth = new Date(year, month + 1, 0).getDate()
+  const cells: (string | null)[] = []
+  for (let i = 0; i < firstDow; i++) cells.push(null)
+  for (let d = 1; d <= daysInMonth; d++) {
+    const iso = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`
+    cells.push(iso)
+  }
+  while (cells.length % 7 !== 0) cells.push(null)
+
+  const weeks: (string | null)[][] = []
+  for (let i = 0; i < cells.length; i += 7) weeks.push(cells.slice(i, i + 7))
+
+  const monthLabel = now.toLocaleDateString('ja-JP', { year: 'numeric', month: 'long' })
+
+  return (
+    <div>
+      {/* Stats row */}
+      <div style={{ display: 'flex', marginBottom: 20 }}>
+        <div style={{ flex: 1, textAlign: 'center' }}>
+          <div style={{ fontSize: 11, color: '#64748b', marginBottom: 3 }}>学習日数</div>
+          <div style={{ fontSize: 26, fontWeight: 800, color: '#f1f5f9', lineHeight: 1 }}>
+            {studyDayCount}<span style={{ fontSize: 13, fontWeight: 400, color: '#94a3b8' }}>日</span>
           </div>
+        </div>
+        <div style={{ width: 1, background: '#334155', margin: '4px 0' }} />
+        <div style={{ flex: 1, textAlign: 'center' }}>
+          <div style={{ fontSize: 11, color: '#64748b', marginBottom: 3 }}>学習時間</div>
+          <div style={{ fontSize: 26, fontWeight: 800, color: '#f1f5f9', lineHeight: 1 }}>
+            {totalHours}<span style={{ fontSize: 13, fontWeight: 400, color: '#94a3b8' }}>h</span>
+          </div>
+        </div>
+        {streak > 0 && <>
+          <div style={{ width: 1, background: '#334155', margin: '4px 0' }} />
+          <div style={{ flex: 1, textAlign: 'center' }}>
+            <div style={{ fontSize: 11, color: '#64748b', marginBottom: 3 }}>ストリーク</div>
+            <div style={{ fontSize: 26, fontWeight: 800, color: '#f97316', lineHeight: 1 }}>
+              {streak}<span style={{ fontSize: 13, fontWeight: 400, color: '#94a3b8' }}>日🔥</span>
+            </div>
+          </div>
+        </>}
+      </div>
+
+      {/* Month label */}
+      <div style={{ fontSize: 13, color: '#64748b', textAlign: 'center', marginBottom: 10 }}>{monthLabel}</div>
+
+      {/* Day headers */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', marginBottom: 4 }}>
+        {DOW.map((d, i) => (
+          <div key={d} style={{ textAlign: 'center', fontSize: 11, fontWeight: 600, color: i === 0 ? '#f87171' : i === 6 ? '#818cf8' : '#475569', paddingBottom: 6 }}>{d}</div>
         ))}
       </div>
-      {/* Legend */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 8 }}>
-        <div style={{ width: CELL, height: CELL, borderRadius: 2, background: '#1e293b', border: '1px solid #334155' }} />
-        <span style={{ fontSize: 10, color: '#475569' }}>なし</span>
-        <div style={{ width: CELL, height: CELL, borderRadius: 2, background: '#4f46e5', border: '1px solid #6366f1', marginLeft: 8 }} />
-        <span style={{ fontSize: 10, color: '#475569' }}>完了</span>
-      </div>
+
+      {/* Selected day detail */}
+      {selectedDay && (() => {
+        const mins = studyData[selectedDay] ?? 0
+        const rev = completedSet.has(selectedDay)
+        const d = new Date(selectedDay + 'T00:00:00')
+        const label = d.toLocaleDateString('ja-JP', { month: 'long', day: 'numeric', weekday: 'short' })
+        return (
+          <div style={{ marginBottom: 14, padding: '12px 16px', background: '#1e293b', borderRadius: 12, border: '1px solid #4f46e5', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div style={{ fontSize: 13, color: '#94a3b8' }}>{label}</div>
+            <div style={{ display: 'flex', gap: 20 }}>
+              <div style={{ textAlign: 'center' }}>
+                <div style={{ fontSize: 10, color: '#64748b', marginBottom: 2 }}>学習時間</div>
+                <div style={{ fontSize: 18, fontWeight: 700, color: mins > 0 ? '#f1f5f9' : '#334155' }}>{mins > 0 ? `${mins}分` : '-'}</div>
+              </div>
+              <div style={{ textAlign: 'center' }}>
+                <div style={{ fontSize: 10, color: '#64748b', marginBottom: 2 }}>復習</div>
+                <div style={{ fontSize: 18, fontWeight: 700, color: rev ? '#22c55e' : '#334155' }}>{rev ? '完了' : '-'}</div>
+              </div>
+            </div>
+          </div>
+        )
+      })()}
+
+      {/* Weeks */}
+      {weeks.map((week, wi) => (
+        <div key={wi} style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', marginBottom: 2 }}>
+          {week.map((iso, di) => {
+            if (!iso) return <div key={di} />
+
+            const minutes = studyData[iso] ?? 0
+            const reviewed = completedSet.has(iso)
+            const isToday = iso === todayStr
+            const isFuture = iso > todayStr
+            const active = minutes > 0
+
+            // Band effect: connect adjacent active days
+            const prevActive = di > 0 && !!week[di - 1] && (studyData[week[di - 1]!] ?? 0) > 0
+            const nextActive = di < 6 && !!week[di + 1] && (studyData[week[di + 1]!] ?? 0) > 0
+            const bandRadius = active
+              ? (!prevActive && !nextActive) ? '999px'
+                : !prevActive ? '999px 0 0 999px'
+                  : !nextActive ? '0 999px 999px 0'
+                    : '0'
+              : '0'
+
+            const dayNum = parseInt(iso.slice(8))
+
+            return (
+              <div key={di} onClick={() => setSelectedDay(iso === selectedDay ? null : iso)} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', paddingTop: 2, paddingBottom: 6, background: iso === selectedDay ? 'rgba(99,102,241,0.35)' : active ? 'rgba(99,102,241,0.18)' : 'none', borderRadius: bandRadius, cursor: 'pointer' }}>
+                {/* Date number */}
+                <div style={{
+                  fontSize: 11, fontWeight: isToday ? 700 : 400,
+                  color: isToday ? '#818cf8' : di === 0 ? '#f87171' : di === 6 ? '#6366f1' : '#94a3b8',
+                  width: 18, height: 18,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  borderRadius: '50%',
+                  background: isToday ? '#312e81' : 'none',
+                  marginBottom: 3,
+                }}>
+                  {dayNum}
+                </div>
+
+                {/* Circle */}
+                <div style={{
+                  width: 28, height: 28, borderRadius: '50%',
+                  background: active ? '#4f46e5' : isFuture ? '#0f172a' : '#1e293b',
+                  border: active ? '1.5px solid #6366f1' : isFuture ? '1.5px solid #1e293b' : '1.5px solid #334155',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  position: 'relative',
+                  boxShadow: active ? '0 0 8px rgba(99,102,241,0.4)' : 'none',
+                }}>
+                  {active && <span style={{ fontSize: 12, lineHeight: 1 }}>✦</span>}
+                  {reviewed && (
+                    <div style={{ position: 'absolute', top: -2, right: -2, width: 10, height: 10, borderRadius: '50%', background: '#22c55e', border: '1.5px solid #0f172a', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <span style={{ fontSize: 6, color: '#fff', lineHeight: 1 }}>✓</span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Time */}
+                <div style={{ fontSize: 9, color: active ? '#94a3b8' : '#334155', marginTop: 3 }}>
+                  {minutes > 0 ? `${minutes}m` : '-'}
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      ))}
     </div>
   )
 }
 
 // --- Completion ---
 
-function CompletionView({
-  results, streak, completedDates,
-}: {
-  results: { id: string; correct: boolean }[]
-  streak: number
-  completedDates: string[]
-}) {
+function CompletionView({ results, streak, completedDates }: { results: { id: string; correct: boolean }[]; streak: number; completedDates: string[] }) {
+  const studyData = readStudyData()
   const correct = results.filter(r => r.correct).length
   const pct = Math.round((correct / results.length) * 100)
   return (
@@ -329,13 +435,11 @@ function CompletionView({
         <div style={{ fontSize: 52 }}>🎉</div>
         <div style={{ fontSize: 26, fontWeight: 800, marginTop: 12, color: '#f1f5f9' }}>Session complete!</div>
         <div style={{ fontSize: 15, color: '#94a3b8', marginTop: 6 }}>{correct}/{results.length} correct · {pct}%</div>
-        {streak > 0 && (
-          <div style={{ fontSize: 18, fontWeight: 700, color: '#f97316', marginTop: 10 }}>
-            🔥 {streak}日連続達成！
-          </div>
-        )}
+        {streak > 0 && <div style={{ fontSize: 18, fontWeight: 700, color: '#f97316', marginTop: 10 }}>🔥 {streak}日連続達成！</div>}
       </div>
-      <ReviewCalendar completedDates={completedDates} />
+      <div style={{ marginTop: 28 }}>
+        <MonthlyCalendar streak={streak} completedDates={completedDates} studyData={studyData} />
+      </div>
     </div>
   )
 }

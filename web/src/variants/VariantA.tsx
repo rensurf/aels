@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import type { Phrase, Verb, VerbPattern } from '../types'
+import type { Phrase, Verb, VerbPattern, PhrasalVerb } from '../types'
 import { getStrengthColor, getStrengthLabel } from '../utils'
 import { createVerb, updateVerb, deleteVerb } from '../api'
 
@@ -77,7 +77,7 @@ export function VariantA({ verbs, phrases, onVerbAdded, onVerbUpdated, onVerbDel
   }
 
   return (
-    <div style={{ display: 'flex', height: '100vh', fontFamily: 'system-ui, sans-serif', background: '#0f172a', color: '#e2e8f0' }}>
+    <div style={{ display: 'flex', height: '100vh', fontFamily: 'system-ui, sans-serif', background: '#0f172a', color: '#e2e8f0', paddingBottom: 70, boxSizing: 'border-box' }}>
       {/* Sidebar */}
       <aside style={{ width: sidebarOpen ? 200 : 0, background: '#1e293b', borderRight: sidebarOpen ? '1px solid #334155' : 'none', display: 'flex', flexDirection: 'column', flexShrink: 0, overflow: 'hidden', transition: 'width 0.2s ease' }}>
         <div style={{ width: 200, display: 'flex', flexDirection: 'column', flex: 1 }}>
@@ -325,6 +325,111 @@ function VerbMetaEditor({ draft, onDraftChange }: { draft: Verb; onDraftChange: 
         <ChipEditor label="類似表現" chips={draft.similarTo} color="#86efac" bg="#14532d22" border="#14532d44" onChange={chips => onDraftChange({ ...draft, similarTo: chips })} />
       </div>
     </>
+  )
+}
+
+// ── Phrasal Verbs section ─────────────────────────────────────────────────────
+
+function PhrasalVerbsSection({ phrasalVerbs: phrasalVerbsProp, onAdd }: {
+  phrasalVerbs: PhrasalVerb[]
+  onAdd: (pv: PhrasalVerb) => Promise<void>
+}) {
+  const phrasalVerbs = phrasalVerbsProp ?? []
+  const [adding, setAdding] = useState(false)
+  const [draft, setDraft] = useState({ phrase: '', pattern: '', definition: '', example: '' })
+  const [saving, setSaving] = useState(false)
+
+  const handleAdd = async () => {
+    if (!draft.phrase.trim() || !draft.definition.trim()) return
+    setSaving(true)
+    try {
+      await onAdd({ phrase: draft.phrase.trim(), pattern: draft.pattern.trim(), definition: draft.definition.trim(), example: draft.example.trim() })
+      setDraft({ phrase: '', pattern: '', definition: '', example: '' })
+      setAdding(false)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  if (phrasalVerbs.length === 0 && !adding) return (
+    <div style={{ marginTop: 40 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+        <div style={{ fontSize: 11, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Phrasal Verbs</div>
+        <button onClick={() => setAdding(true)} style={{ fontSize: 12, color: '#a78bfa', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>＋ 追加</button>
+      </div>
+      <div style={{ fontSize: 13, color: '#334155', fontStyle: 'italic' }}>句動詞なし</div>
+    </div>
+  )
+
+  return (
+    <div style={{ marginTop: 40 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+        <div style={{ fontSize: 11, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Phrasal Verbs</div>
+        {!adding && (
+          <button onClick={() => setAdding(true)} style={{ fontSize: 12, color: '#a78bfa', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>＋ 追加</button>
+        )}
+      </div>
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+        {phrasalVerbs.map(pv => (
+          <div key={pv.phrase} style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 0, padding: '10px 16px', background: '#1e293b', borderRadius: 8 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 3 }}>
+              <span style={{ fontWeight: 600, color: '#a78bfa', fontSize: 14 }}>{pv.phrase}</span>
+              {pv.pattern && (
+                <span style={{ fontSize: 11, fontWeight: 600, padding: '1px 6px', borderRadius: 4, background: patternColor(pv.pattern) + '22', color: patternColor(pv.pattern), border: `1px solid ${patternColor(pv.pattern)}44` }}>{pv.pattern}</span>
+              )}
+            </div>
+            <div style={{ fontSize: 13, color: '#e2e8f0', marginBottom: 2 }}>{pv.definition}</div>
+            {pv.example && <div style={{ fontSize: 12, color: '#64748b', fontStyle: 'italic' }}>"{pv.example}"</div>}
+          </div>
+        ))}
+      </div>
+
+      {adding && (
+        <div style={{ marginTop: 8, background: '#1e293b', borderRadius: 8, padding: 16, border: '1px solid #a78bfa33' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <input
+                autoFocus
+                value={draft.phrase}
+                onChange={e => setDraft(d => ({ ...d, phrase: e.target.value }))}
+                placeholder="句動詞（例: look after）"
+                style={{ flex: 1, background: '#0f172a', border: '1px solid #334155', borderRadius: 4, color: '#e2e8f0', fontSize: 13, padding: '6px 8px', outline: 'none' }}
+              />
+              <select
+                value={draft.pattern}
+                onChange={e => setDraft(d => ({ ...d, pattern: e.target.value }))}
+                style={{ background: '#0f172a', border: '1px solid #334155', borderRadius: 4, color: draft.pattern ? '#e2e8f0' : '#64748b', fontSize: 13, padding: '6px 8px', outline: 'none', width: 70 }}
+              >
+                <option value="">文型</option>
+                {PATTERN_CODES.map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </div>
+            <input
+              value={draft.definition}
+              onChange={e => setDraft(d => ({ ...d, definition: e.target.value }))}
+              placeholder="日本語の意味（例: 〜の世話をする）"
+              style={{ background: '#0f172a', border: '1px solid #334155', borderRadius: 4, color: '#e2e8f0', fontSize: 13, padding: '6px 8px', outline: 'none' }}
+            />
+            <input
+              value={draft.example}
+              onChange={e => setDraft(d => ({ ...d, example: e.target.value }))}
+              onKeyDown={e => { if (e.key === 'Enter') handleAdd(); if (e.key === 'Escape') setAdding(false) }}
+              placeholder="例文（任意）"
+              style={{ background: '#0f172a', border: '1px solid #334155', borderRadius: 4, color: '#e2e8f0', fontSize: 13, padding: '6px 8px', outline: 'none' }}
+            />
+          </div>
+          <div style={{ display: 'flex', gap: 12, marginTop: 10 }}>
+            <button onClick={handleAdd} disabled={saving || !draft.phrase.trim() || !draft.definition.trim()} style={{ fontSize: 13, color: '#a78bfa', background: 'none', border: 'none', cursor: 'pointer', padding: 0, opacity: saving ? 0.5 : 1 }}>
+              {saving ? '保存中...' : '追加'}
+            </button>
+            <button onClick={() => { setAdding(false); setDraft({ phrase: '', pattern: '', definition: '', example: '' }) }} style={{ fontSize: 13, color: '#64748b', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+              キャンセル
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
   )
 }
 
@@ -594,6 +699,15 @@ function VerbDetail({ verb, phrases, onUpdated, onDeleted }: {
           )
         })}
       </div>
+
+      <PhrasalVerbsSection
+        phrasalVerbs={verb.phrasalVerbs}
+        onAdd={async (pv) => {
+          const updated = { ...verb, phrasalVerbs: [...(verb.phrasalVerbs ?? []), pv] }
+          const saved = await updateVerb(updated)
+          onUpdated(saved)
+        }}
+      />
     </div>
   )
 }
