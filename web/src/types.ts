@@ -47,6 +47,7 @@ export interface Verb {
   confusableWith: string[]
   similarTo: string[]
   phrasalVerbs: PhrasalVerb[]
+  tags: string[]
   nounForm?: string
   adjForm?: string
 }

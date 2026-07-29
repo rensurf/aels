@@ -34,13 +34,30 @@ interface Props {
   onVerbDeleted: (verbId: string) => void
 }
 
+type QuizSession = { verbs: Verb[]; index: number; revealed: boolean; source: string }
+
 export function VariantA({ verbs, phrases, onVerbAdded, onVerbUpdated, onVerbDeleted }: Props) {
   const [selectedId, setSelectedId] = useState<string>(verbs[0]?.id ?? '')
   const [addState, setAddState] = useState<AddState>({ status: 'idle' })
   const [sidebarOpen, setSidebarOpen] = useState(() => window.innerWidth >= 640)
+  const [sourceFilter, setSourceFilter] = useState<string | null>(null)
+  const [quiz, setQuiz] = useState<QuizSession | null>(null)
 
   const selectedVerb = verbs.find(v => v.id === selectedId)
   const isAdding = addState.status !== 'idle'
+
+  // Collect unique tags across all verbs
+  const allTags = [...new Set(verbs.flatMap(v => v.tags))]
+
+  const filteredVerbs = sourceFilter
+    ? verbs.filter(v => v.tags.includes(sourceFilter))
+    : verbs
+
+  const startQuiz = () => {
+    if (filteredVerbs.length === 0) return
+    setQuiz({ verbs: filteredVerbs, index: 0, revealed: false, source: sourceFilter ?? 'All verbs' })
+    setSidebarOpen(false)
+  }
 
   const handleGenerate = async (base: string) => {
     setAddState({ status: 'generating' })
@@ -126,7 +143,45 @@ export function VariantA({ verbs, phrases, onVerbAdded, onVerbUpdated, onVerbDel
         )}
 
         <div style={{ flex: 1, overflowY: 'auto' }}>
-          {verbs.map(verb => {
+          {/* SOURCES filter */}
+          <div style={{ padding: '12px 12px 6px' }}>
+            <div style={{ fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.1em', color: '#475569', marginBottom: 6 }}>Sources</div>
+            <button
+              onClick={() => setSourceFilter(null)}
+              style={{ display: 'block', width: '100%', textAlign: 'left', padding: '5px 8px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 12, marginBottom: 2, background: sourceFilter === null ? '#334155' : 'transparent', color: sourceFilter === null ? '#e2e8f0' : '#64748b', fontWeight: sourceFilter === null ? 600 : 400 }}
+            >
+              All verbs <span style={{ color: '#475569', fontWeight: 400 }}>({verbs.length})</span>
+            </button>
+            {allTags.map(tag => {
+              const count = verbs.filter(v => v.tags.includes(tag)).length
+              const active = sourceFilter === tag
+              return (
+                <button
+                  key={tag}
+                  onClick={() => setSourceFilter(tag)}
+                  style={{ display: 'block', width: '100%', textAlign: 'left', padding: '5px 8px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 12, marginBottom: 2, background: active ? '#334155' : 'transparent', color: active ? '#e2e8f0' : '#64748b', fontWeight: active ? 600 : 400 }}
+                >
+                  {tag} <span style={{ color: '#475569', fontWeight: 400 }}>({count})</span>
+                </button>
+              )
+            })}
+          </div>
+
+          {/* Quiz start */}
+          <div style={{ padding: '6px 12px 10px' }}>
+            <button
+              onClick={startQuiz}
+              disabled={filteredVerbs.length === 0}
+              style={{ width: '100%', padding: '7px 0', borderRadius: 6, border: 'none', background: filteredVerbs.length > 0 ? '#4f46e5' : '#1e293b', color: filteredVerbs.length > 0 ? '#fff' : '#475569', fontSize: 12, fontWeight: 600, cursor: filteredVerbs.length > 0 ? 'pointer' : 'default' }}
+            >
+              ▶ Quiz ({filteredVerbs.length}問)
+            </button>
+          </div>
+
+          <div style={{ borderTop: '1px solid #1e293b', margin: '0 0 6px' }} />
+
+          {/* Verb list */}
+          {filteredVerbs.map(verb => {
             const avg = verbAvgEase(verb.id, phrases)
             const color = getStrengthColor(avg)
             const count = phrases.filter(p => p.verbId === verb.id).length
@@ -157,7 +212,10 @@ export function VariantA({ verbs, phrases, onVerbAdded, onVerbUpdated, onVerbDel
 
       {/* Main */}
       <main style={{ flex: 1, overflowY: 'auto', padding: 24, minWidth: 0 }}>
-        {!sidebarOpen && (
+        {/* Quiz session */}
+        {quiz && <QuizOverlay quiz={quiz} onUpdate={setQuiz} onClose={() => { setQuiz(null); setSidebarOpen(true) }} />}
+
+        {!quiz && !sidebarOpen && (
           <button
             onClick={() => setSidebarOpen(true)}
             style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 16, padding: '6px 12px', background: '#1e293b', border: '1px solid #334155', borderRadius: 6, color: '#94a3b8', fontSize: 13, cursor: 'pointer' }}
@@ -165,7 +223,7 @@ export function VariantA({ verbs, phrases, onVerbAdded, onVerbUpdated, onVerbDel
             ☰ {selectedVerb?.base ?? 'Verbs'}
           </button>
         )}
-        {addState.status === 'preview'
+        {!quiz && (addState.status === 'preview'
           ? <AddVerbPreview draft={addState.draft} saving={addState.saving} onDraftChange={handleDraftChange} onSave={handleSave} onCancel={handleCancel} />
           : selectedVerb
             ? <VerbDetail
@@ -181,8 +239,145 @@ export function VariantA({ verbs, phrases, onVerbAdded, onVerbUpdated, onVerbDel
             : verbs.length === 0
               ? <div style={{ color: '#475569', paddingTop: 80, textAlign: 'center', fontSize: 14 }}>No verbs yet. Click <strong style={{ color: '#94a3b8' }}>+</strong> to add your first verb.</div>
               : <div style={{ color: '#475569' }}>Select a verb</div>
-        }
+        )}
       </main>
+    </div>
+  )
+}
+
+// ── Verb tags row ─────────────────────────────────────────────────────────────
+
+function VerbTagsRow({ tags, onAdd, onRemove }: {
+  tags: string[]
+  onAdd: (tag: string) => Promise<void>
+  onRemove: (tag: string) => Promise<void>
+}) {
+  const [input, setInput] = useState('')
+  const [adding, setAdding] = useState(false)
+
+  const commit = async () => {
+    if (!input.trim()) { setAdding(false); return }
+    await onAdd(input.trim())
+    setInput('')
+    setAdding(false)
+  }
+
+  return (
+    <div style={{ display: 'flex', gap: 6, marginTop: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+      {tags.map(tag => (
+        <span key={tag} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '3px 8px 3px 10px', borderRadius: 999, fontSize: 11, background: '#1e293b', color: '#94a3b8', border: '1px solid #334155' }}>
+          {tag}
+          <button onClick={() => void onRemove(tag)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#475569', fontSize: 12, lineHeight: 1, padding: 0 }}
+            onMouseEnter={e => (e.currentTarget.style.color = '#ef4444')}
+            onMouseLeave={e => (e.currentTarget.style.color = '#475569')}
+          >✕</button>
+        </span>
+      ))}
+      {adding ? (
+        <input
+          autoFocus
+          value={input}
+          onChange={e => setInput(e.target.value)}
+          onKeyDown={e => { if (e.key === 'Enter') void commit(); if (e.key === 'Escape') { setAdding(false); setInput('') } }}
+          onBlur={() => void commit()}
+          placeholder="例: Murphy's Grammar"
+          style={{ padding: '3px 8px', borderRadius: 999, fontSize: 11, background: '#0f172a', border: '1px solid #6366f1', color: '#e2e8f0', outline: 'none', width: 150 }}
+        />
+      ) : (
+        <button onClick={() => setAdding(true)} style={{ padding: '3px 8px', borderRadius: 999, fontSize: 11, background: 'none', color: '#475569', border: '1px dashed #334155', cursor: 'pointer' }}>
+          + ソース追加
+        </button>
+      )}
+    </div>
+  )
+}
+
+// ── Quiz session overlay ───────────────────────────────────────────────────────
+
+function QuizOverlay({ quiz, onUpdate, onClose }: {
+  quiz: QuizSession
+  onUpdate: (q: QuizSession) => void
+  onClose: () => void
+}) {
+  const verb = quiz.verbs[quiz.index]
+  const isLast = quiz.index === quiz.verbs.length - 1
+  const isDone = quiz.index >= quiz.verbs.length
+
+  if (isDone) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '70vh', gap: 16, textAlign: 'center' }}>
+        <div style={{ fontSize: 52 }}>🎉</div>
+        <div style={{ fontSize: 28, fontWeight: 800, color: '#f1f5f9' }}>完了！</div>
+        <div style={{ fontSize: 15, color: '#64748b' }}>{quiz.verbs.length}動詞 · {quiz.source}</div>
+        <button onClick={onClose} style={{ marginTop: 16, padding: '10px 28px', borderRadius: 8, border: '1px solid #334155', background: 'transparent', color: '#94a3b8', fontSize: 14, cursor: 'pointer' }}>
+          戻る
+        </button>
+      </div>
+    )
+  }
+
+  const codes = [...new Set(verb.patterns.map(vp => vp.code))]
+
+  return (
+    <div style={{ maxWidth: 520, margin: '0 auto' }}>
+      {/* Progress */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 32 }}>
+        <div style={{ flex: 1, height: 4, background: '#1e293b', borderRadius: 999, overflow: 'hidden' }}>
+          <div style={{ height: '100%', background: '#6366f1', borderRadius: 999, width: `${((quiz.index) / quiz.verbs.length) * 100}%`, transition: 'width 0.3s ease' }} />
+        </div>
+        <span style={{ fontSize: 12, color: '#475569', flexShrink: 0 }}>{quiz.index + 1} / {quiz.verbs.length}</span>
+        <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#475569', cursor: 'pointer', fontSize: 18, lineHeight: 1, padding: '0 4px' }}>✕</button>
+      </div>
+
+      {/* Card */}
+      <div style={{ background: '#1e293b', borderRadius: 20, padding: '40px 32px', textAlign: 'center', border: '1px solid #334155', minHeight: 280 }}>
+        <div style={{ fontSize: 13, color: '#475569', marginBottom: 12 }}>{quiz.source}</div>
+        <div style={{ fontSize: 56, fontWeight: 800, color: '#f1f5f9', marginBottom: 8 }}>{verb.base}</div>
+
+        {!quiz.revealed ? (
+          <>
+            <div style={{ fontSize: 13, color: '#475569', marginTop: 24, marginBottom: 28 }}>このパターンをすべて言えますか？</div>
+            <button
+              onClick={() => onUpdate({ ...quiz, revealed: true })}
+              style={{ padding: '12px 32px', borderRadius: 10, border: 'none', background: '#6366f1', color: '#fff', fontSize: 15, fontWeight: 600, cursor: 'pointer' }}
+            >
+              答えを見る
+            </button>
+          </>
+        ) : (
+          <>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, justifyContent: 'center', margin: '20px 0 8px' }}>
+              {codes.map(code => (
+                <span key={code} style={{ padding: '5px 14px', borderRadius: 999, fontSize: 13, fontWeight: 700, background: patternColor(code) + '22', color: patternColor(code), border: `1px solid ${patternColor(code)}44` }}>{code}</span>
+              ))}
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, textAlign: 'left', marginTop: 16 }}>
+              {codes.map(code => {
+                const sense = verb.patterns.find(vp => vp.code === code)
+                return (
+                  <div key={code} style={{ padding: '10px 14px', background: '#0f172a', borderRadius: 10, border: `1px solid ${patternColor(code)}22` }}>
+                    <span style={{ fontWeight: 700, color: patternColor(code), fontSize: 12, marginRight: 8 }}>{code}</span>
+                    <span style={{ fontSize: 13, color: '#e2e8f0' }}>{sense?.description}</span>
+                    {sense?.examples[0] && <div style={{ fontSize: 12, color: '#64748b', fontStyle: 'italic', marginTop: 3 }}>"{sense.examples[0]}"</div>}
+                  </div>
+                )
+              })}
+            </div>
+          </>
+        )}
+      </div>
+
+      {/* Next button */}
+      {quiz.revealed && (
+        <div style={{ display: 'flex', justifyContent: 'center', marginTop: 20 }}>
+          <button
+            onClick={() => onUpdate({ ...quiz, index: quiz.index + 1, revealed: false })}
+            style={{ padding: '12px 40px', borderRadius: 10, border: 'none', background: isLast ? '#10b981' : '#6366f1', color: '#fff', fontSize: 15, fontWeight: 600, cursor: 'pointer' }}
+          >
+            {isLast ? '完了' : '次へ →'}
+          </button>
+        </div>
+      )}
     </div>
   )
 }
@@ -506,6 +701,38 @@ function VerbDetail({ verb, phrases, onUpdated, onDeleted }: {
     setAddingPattern(false)
   }
 
+  const handleDeleteSense = async (code: string, description: string) => {
+    const updated = { ...verb, patterns: verb.patterns.filter(p => !(p.code === code && p.description === description)) }
+    try {
+      const saved = await updateVerb(updated)
+      onUpdated(saved)
+    } catch (e) {
+      setError(String(e))
+    }
+  }
+
+  const handleTagAdd = async (tag: string) => {
+    const trimmed = tag.trim()
+    if (!trimmed || verb.tags.includes(trimmed)) return
+    const updated = { ...verb, tags: [...verb.tags, trimmed] }
+    try {
+      const saved = await updateVerb(updated)
+      onUpdated(saved)
+    } catch (e) {
+      setError(String(e))
+    }
+  }
+
+  const handleTagRemove = async (tag: string) => {
+    const updated = { ...verb, tags: verb.tags.filter(t => t !== tag) }
+    try {
+      const saved = await updateVerb(updated)
+      onUpdated(saved)
+    } catch (e) {
+      setError(String(e))
+    }
+  }
+
   const handleDelete = async () => {
     setSaving(true)
     try {
@@ -606,21 +833,27 @@ function VerbDetail({ verb, phrases, onUpdated, onDeleted }: {
       {/* Header */}
       <div style={{ marginBottom: 32 }}>
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
-          <div>
+          <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ display: 'flex', alignItems: 'baseline', gap: 16 }}>
               <h1 style={{ margin: 0, fontSize: 40, fontWeight: 700, color: '#f1f5f9' }}>{verb.base}</h1>
               {verb.nounForm && <span style={{ fontSize: 14, color: '#64748b' }}>名詞: <em>{verb.nounForm}</em></span>}
               {verb.adjForm && <span style={{ fontSize: 14, color: '#64748b' }}>形容詞: <em>{verb.adjForm}</em></span>}
             </div>
-            <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+
+            {/* Pattern badges */}
+            <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
               {[...new Set(verb.patterns.map(vp => vp.code))].map(code => (
                 <span key={code} style={{ padding: '4px 10px', borderRadius: 999, fontSize: 12, fontWeight: 600, background: patternColor(code) + '22', color: patternColor(code), border: `1px solid ${patternColor(code)}44` }}>{code}</span>
               ))}
             </div>
+
+            {/* Source tags */}
+            <VerbTagsRow tags={verb.tags} onAdd={handleTagAdd} onRemove={handleTagRemove} />
           </div>
+
           <button
             onClick={() => setEditing(true)}
-            style={{ padding: '6px 14px', borderRadius: 6, border: '1px solid #334155', background: 'transparent', color: '#94a3b8', fontSize: 13, cursor: 'pointer', flexShrink: 0 }}
+            style={{ padding: '6px 14px', borderRadius: 6, border: '1px solid #334155', background: 'transparent', color: '#94a3b8', fontSize: 13, cursor: 'pointer', flexShrink: 0, marginLeft: 16 }}
           >Edit</button>
         </div>
       </div>
@@ -655,50 +888,37 @@ function VerbDetail({ verb, phrases, onUpdated, onDeleted }: {
             return acc
           }, {})
         ).map(([code, senses]) => {
-          const patternPhrases = phrases.filter(p => p.verbId === verb.id && p.pattern === code)
           const color = patternColor(code)
           return (
             <div key={code} style={{ background: '#1e293b', borderRadius: 12, overflow: 'hidden', border: `1px solid ${color}33` }}>
               {/* Header */}
-              <div style={{ padding: '12px 20px', borderBottom: `1px solid ${color}33`, background: color + '11', display: 'flex', alignItems: 'center', gap: 10 }}>
+              <div style={{ padding: '12px 20px', borderBottom: `1px solid ${color}22`, background: color + '11', display: 'flex', alignItems: 'center', gap: 10 }}>
                 <span style={{ fontWeight: 700, color, fontSize: 13 }}>{code}</span>
               </div>
 
               {/* Senses — each with description + examples */}
-              <div style={{ padding: '12px 20px 0', display: 'flex', flexDirection: 'column', gap: 14 }}>
+              <div style={{ padding: '14px 20px 16px', display: 'flex', flexDirection: 'column', gap: 16 }}>
                 {senses.map((vp, si) => (
-                  <div key={si}>
-                    <div style={{ fontSize: 13, color: '#94a3b8', marginBottom: 4 }}>{vp.description}</div>
-                    {vp.examples.filter(ex => ex.trim()).map((ex, i) => (
-                      <div key={i} style={{ fontSize: 13, color: '#64748b', fontStyle: 'italic' }}>"{ex}"</div>
-                    ))}
-                    {vp.memo && (
-                      <div style={{ marginTop: 6, fontSize: 12, color: '#475569', background: '#0f172a', padding: '6px 10px', borderRadius: 6 }}>{vp.memo}</div>
-                    )}
+                  <div key={si} style={{ display: 'flex', gap: 8 }}>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: 13, color: '#e2e8f0', marginBottom: 6, fontWeight: 500 }}>{vp.description}</div>
+                      {vp.examples.filter(ex => ex.trim()).map((ex, i) => (
+                        <div key={i} style={{ fontSize: 13, color: '#94a3b8', fontStyle: 'italic', lineHeight: 1.6 }}>"{ex}"</div>
+                      ))}
+                      {vp.memo && (
+                        <div style={{ marginTop: 6, fontSize: 12, color: '#94a3b8', background: '#0f172a', padding: '6px 10px', borderRadius: 6 }}>{vp.memo}</div>
+                      )}
+                    </div>
+                    <button
+                      onClick={() => void handleDeleteSense(code, vp.description)}
+                      title="このセンスを削除"
+                      style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#334155', fontSize: 14, padding: '2px 4px', lineHeight: 1, flexShrink: 0, alignSelf: 'flex-start' }}
+                      onMouseEnter={e => (e.currentTarget.style.color = '#ef4444')}
+                      onMouseLeave={e => (e.currentTarget.style.color = '#334155')}
+                    >✕</button>
                   </div>
                 ))}
               </div>
-
-              {/* Saved phrases */}
-              {patternPhrases.length === 0 ? (
-                <div style={{ padding: '16px 20px', color: '#334155', fontSize: 13, fontStyle: 'italic' }}>まだ保存フレーズなし</div>
-              ) : (
-                patternPhrases.map(phrase => (
-                  <div key={phrase.id} style={{ padding: '14px 20px', borderTop: '1px solid #334155' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                      <div>
-                        <div style={{ fontSize: 16, color: '#f1f5f9', marginBottom: 4 }}>{phrase.text}</div>
-                        <div style={{ fontSize: 13, color: '#94a3b8' }}>{phrase.japanese}</div>
-                      </div>
-                      <div style={{ textAlign: 'right', flexShrink: 0, marginLeft: 16 }}>
-                        <div style={{ fontSize: 12, color: getStrengthColor(phrase.easeFactor), fontWeight: 600 }}>{getStrengthLabel(phrase.easeFactor)}</div>
-                        <div style={{ fontSize: 11, color: '#475569' }}>due {phrase.dueDate}</div>
-                      </div>
-                    </div>
-                    {phrase.note && <div style={{ marginTop: 8, fontSize: 12, color: '#64748b', background: '#0f172a', padding: '8px 12px', borderRadius: 6 }}>{phrase.note}</div>}
-                  </div>
-                ))
-              )}
             </div>
           )
         })}

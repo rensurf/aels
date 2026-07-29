@@ -39,6 +39,7 @@ function mapVerb(r: Record<string, unknown>): Verb {
       definition: pv.definition ?? '',
       example: pv.example ?? '',
     })),
+    tags: (r.tags as string[]) ?? [],
     nounForm: r.noun_form != null ? String(r.noun_form) : undefined,
     adjForm: r.adj_form != null ? String(r.adj_form) : undefined,
   }
@@ -264,6 +265,7 @@ export async function updateVerb(verb: Verb): Promise<Verb> {
     confusable_with: verb.confusableWith,
     similar_to: verb.similarTo,
     phrasal_verbs: verb.phrasalVerbs,
+    tags: verb.tags,
   }
   if (verb.nounForm) body.noun_form = verb.nounForm
   if (verb.adjForm) body.adj_form = verb.adjForm
