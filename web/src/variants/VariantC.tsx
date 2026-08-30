@@ -6,6 +6,14 @@ import { readStudyData } from '../hooks/useStudyTimer'
 
 type CardState = 'front' | 'back'
 
+function speak(text: string) {
+  window.speechSynthesis.cancel()
+  const utter = new SpeechSynthesisUtterance(text)
+  utter.lang = 'en-AU'
+  utter.rate = 0.9
+  window.speechSynthesis.speak(utter)
+}
+
 function buildCloze(phrase: string, examples: string[]): { before: string; match: string; after: string } | null {
   for (const ex of examples) {
     const idx = ex.toLowerCase().indexOf(phrase.toLowerCase())
@@ -212,8 +220,17 @@ export function VariantC({ phrases, verbs, streak, completedDates, onPhraseRevie
                   ) : (
                     <>
                       <div style={{ fontSize: 13, color: '#818cf8', marginBottom: 12 }}>English</div>
-                      <div style={{ fontSize: 17, color: '#e0e7ff', lineHeight: 1.6, marginBottom: 10 }}>
-                        {current.text}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+                        <div style={{ fontSize: 17, color: '#e0e7ff', lineHeight: 1.6, flex: 1 }}>
+                          {current.text}
+                        </div>
+                        <button
+                          onClick={e => { e.stopPropagation(); speak(current.text) }}
+                          style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#475569', padding: 6, flexShrink: 0, borderRadius: 8, lineHeight: 1 }}
+                          title="発音を聞く"
+                        >
+                          🔊
+                        </button>
                       </div>
                       {cloze && (
                         <div style={{ fontSize: 14, color: '#94a3b8', lineHeight: 1.7, marginBottom: 14, fontStyle: 'italic' }}>
