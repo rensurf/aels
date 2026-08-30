@@ -53,7 +53,7 @@ class PhrasesClient:
             "ease_factor": Decimal("2.5"),
             "interval": 0,
             "repetitions": 0,
-            "due_date": (date.today() + timedelta(days=1)).isoformat(),
+            "due_date": date.today().isoformat(),
             "created_at": datetime.utcnow().isoformat(),
         }
         # GSI keys cannot be empty strings in DynamoDB
@@ -65,6 +65,8 @@ class PhrasesClient:
             item["examples"] = phrase["examples"]
         if phrase.get("alternatives"):
             item["alternatives"] = phrase["alternatives"]
+        if phrase.get("source"):
+            item["source"] = phrase["source"]
         self.table.put_item(Item=item)
         return _normalize(item)
 
@@ -134,7 +136,7 @@ class PhrasesClient:
         attr_names: dict = {}
         attr_values: dict = {}
 
-        for field in ["text", "japanese", "note", "register", "type", "examples"]:
+        for field in ["text", "japanese", "note", "register", "type", "examples", "source"]:
             if field in updates:
                 set_parts.append(f"#{field} = :{field}")
                 attr_names[f"#{field}"] = field

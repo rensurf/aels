@@ -1,4 +1,4 @@
-import type { Phrase, Verb, PhraseType, Alternative, PhrasalVerb } from './types'
+import type { Phrase, Verb, PhraseType, Alternative, PhrasalVerb, Topic, SpeechFeedback, RoutineProgress, RoutineStep, Correction } from './types'
 
 const API_BASE = (import.meta.env.VITE_API_BASE_URL as string) ?? ''
 const API_KEY = (import.meta.env.VITE_API_KEY as string) ?? ''
@@ -22,6 +22,8 @@ function mapPhrase(r: Record<string, unknown>): Phrase {
     memo: r.memo != null ? String(r.memo) : undefined,
     examples: Array.isArray(r.examples) ? (r.examples as string[]) : undefined,
     alternatives: Array.isArray(r.alternatives) ? (r.alternatives as Alternative[]) : undefined,
+    source: r.source != null ? String(r.source) : undefined,
+    createdAt: r.created_at != null ? String(r.created_at) : undefined,
   }
 }
 
@@ -42,6 +44,7 @@ function mapVerb(r: Record<string, unknown>): Verb {
     tags: (r.tags as string[]) ?? [],
     nounForm: r.noun_form != null ? String(r.noun_form) : undefined,
     adjForm: r.adj_form != null ? String(r.adj_form) : undefined,
+    memo: r.memo != null ? String(r.memo) : undefined,
   }
 }
 
@@ -157,6 +160,7 @@ export async function savePhrase(phrase: {
   type?: PhraseType
   examples?: string[]
   alternatives?: Alternative[]
+  source?: string
 }): Promise<Phrase> {
   const resp = await fetch(`${API_BASE}/phrases`, {
     method: 'POST',
@@ -258,6 +262,25 @@ export async function fetchStats(): Promise<Stats> {
   return resp.json() as Promise<Stats>
 }
 
+export interface VocabExtractItem {
+  word: string
+  japanese: string
+  type: PhraseType
+  note: string
+  example: string
+}
+
+export async function extractVocab(text: string): Promise<VocabExtractItem[]> {
+  const resp = await fetch(`${API_BASE}/vocab/extract`, {
+    method: 'POST',
+    headers: { ...headers, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ text }),
+  })
+  if (!resp.ok) throw new Error(`Extract vocab failed: ${resp.status}`)
+  const json = await resp.json() as { items: VocabExtractItem[] }
+  return json.items
+}
+
 export async function updateVerb(verb: Verb): Promise<Verb> {
   const body: Record<string, unknown> = {
     base: verb.base,
@@ -269,6 +292,7 @@ export async function updateVerb(verb: Verb): Promise<Verb> {
   }
   if (verb.nounForm) body.noun_form = verb.nounForm
   if (verb.adjForm) body.adj_form = verb.adjForm
+  if (verb.memo) body.memo = verb.memo
   const resp = await fetch(`${API_BASE}/verbs/${verb.id}`, {
     method: 'PUT',
     headers: { ...headers, 'Content-Type': 'application/json' },
@@ -276,4 +300,220 @@ export async function updateVerb(verb: Verb): Promise<Verb> {
   })
   if (!resp.ok) throw new Error(`Failed to save verb: ${resp.status}`)
   return mapVerb(await resp.json() as Record<string, unknown>)
+}
+
+// ─── Topics ──────────────────────────────────────────────────────────────────
+
+export async function fetchTopics(): Promise<Topic[]> {
+  const resp = await fetch(`${API_BASE}/topics`, { headers })
+  if (!resp.ok) throw new Error(`Failed to fetch topics: ${resp.status}`)
+  return resp.json() as Promise<Topic[]>
+}
+
+export async function fetchTopicsToday(): Promise<Topic[]> {
+  const resp = await fetch(`${API_BASE}/topics/today`, { headers })
+  if (!resp.ok) throw new Error(`Failed to fetch today's topics: ${resp.status}`)
+  return resp.json() as Promise<Topic[]>
+}
+
+export async function addTopicBullet(
+  topicId: string,
+  bullet: { ja: string; en?: string; example?: string },
+): Promise<Topic> {
+  const resp = await fetch(`${API_BASE}/topics/${topicId}/bullets`, {
+    method: 'POST',
+    headers: { ...headers, 'Content-Type': 'application/json' },
+    body: JSON.stringify(bullet),
+  })
+  if (!resp.ok) throw new Error(`Failed to add bullet: ${resp.status}`)
+  return resp.json() as Promise<Topic>
+}
+
+export async function updateTopicBullet(
+  topicId: string,
+  bulletId: string,
+  updates: { ja?: string; en?: string; example?: string },
+): Promise<Topic> {
+  const resp = await fetch(`${API_BASE}/topics/${topicId}/bullets/${bulletId}`, {
+    method: 'PUT',
+    headers: { ...headers, 'Content-Type': 'application/json' },
+    body: JSON.stringify(updates),
+  })
+  if (!resp.ok) throw new Error(`Failed to update bullet: ${resp.status}`)
+  return resp.json() as Promise<Topic>
+}
+
+export async function deleteTopicBullet(topicId: string, bulletId: string): Promise<Topic> {
+  const resp = await fetch(`${API_BASE}/topics/${topicId}/bullets/${bulletId}`, {
+    method: 'DELETE',
+    headers,
+  })
+  if (!resp.ok) throw new Error(`Failed to delete bullet: ${resp.status}`)
+  return resp.json() as Promise<Topic>
+}
+
+export async function analyzeTopicSpeech(topicId: string, text: string): Promise<SpeechFeedback> {
+  const resp = await fetch(`${API_BASE}/topics/${topicId}/session`, {
+    method: 'POST',
+    headers: { ...headers, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ text }),
+  })
+  if (!resp.ok) throw new Error(`Failed to analyze speech: ${resp.status}`)
+  return resp.json() as Promise<SpeechFeedback>
+}
+
+export async function createTopic(title: string, number?: number): Promise<Topic> {
+  const resp = await fetch(`${API_BASE}/topics`, {
+    method: 'POST',
+    headers: { ...headers, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ title, number }),
+  })
+  if (!resp.ok) throw new Error(`Failed to create topic: ${resp.status}`)
+  return resp.json() as Promise<Topic>
+}
+
+export async function updateTopic(
+  topicId: string,
+  updates: { title?: string; number?: number; script?: string; levels?: Record<string, { chunk: string; cues: string[] }[]> },
+): Promise<Topic> {
+  const resp = await fetch(`${API_BASE}/topics/${topicId}`, {
+    method: 'PUT',
+    headers: { ...headers, 'Content-Type': 'application/json' },
+    body: JSON.stringify(updates),
+  })
+  if (!resp.ok) throw new Error(`Failed to update topic: ${resp.status}`)
+  return resp.json() as Promise<Topic>
+}
+
+export async function addTopicCorrection(
+  topicId: string,
+  correction: { original: string; corrected: string; note: string },
+): Promise<Topic> {
+  const resp = await fetch(`${API_BASE}/topics/${topicId}/corrections`, {
+    method: 'POST',
+    headers: { ...headers, 'Content-Type': 'application/json' },
+    body: JSON.stringify(correction),
+  })
+  if (!resp.ok) throw new Error(`Failed to add correction: ${resp.status}`)
+  return resp.json() as Promise<Topic>
+}
+
+export async function deleteTopicCorrection(topicId: string, correctionId: string): Promise<Topic> {
+  const resp = await fetch(`${API_BASE}/topics/${topicId}/corrections/${correctionId}`, {
+    method: 'DELETE',
+    headers,
+  })
+  if (!resp.ok) throw new Error(`Failed to delete correction: ${resp.status}`)
+  return resp.json() as Promise<Topic>
+}
+
+export async function deleteTopic(topicId: string): Promise<void> {
+  const resp = await fetch(`${API_BASE}/topics/${topicId}`, {
+    method: 'DELETE',
+    headers,
+  })
+  if (!resp.ok) throw new Error(`Failed to delete topic: ${resp.status}`)
+}
+
+export async function extractTopicLevels(topicId: string, script: string): Promise<Topic> {
+  const resp = await fetch(`${API_BASE}/topics/${topicId}/keywords`, {
+    method: 'POST',
+    headers: { ...headers, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ script }),
+  })
+  if (!resp.ok) throw new Error(`Failed to extract levels: ${resp.status}`)
+  return resp.json() as Promise<Topic>
+}
+
+export async function reviewTopic(topicId: string, quality: number): Promise<Topic> {
+  const resp = await fetch(`${API_BASE}/topics/${topicId}/review`, {
+    method: 'POST',
+    headers: { ...headers, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ quality }),
+  })
+  if (!resp.ok) throw new Error(`Failed to review topic: ${resp.status}`)
+  return resp.json() as Promise<Topic>
+}
+
+export async function fetchRoutine(): Promise<RoutineProgress> {
+  const resp = await fetch(`${API_BASE}/routine`, { headers })
+  if (!resp.ok) throw new Error(`fetchRoutine failed: ${resp.status}`)
+  return resp.json() as Promise<RoutineProgress>
+}
+
+function mapCorrection(r: Record<string, unknown>): Correction {
+  return {
+    id: String(r.correction_id),
+    original: String(r.original ?? ''),
+    corrected: String(r.corrected ?? ''),
+    note: String(r.note ?? ''),
+    submittedAt: String(r.submitted_at ?? ''),
+    easeFactor: Number(r.ease_factor ?? 2.5),
+    interval: Number(r.interval ?? 0),
+    repetitions: Number(r.repetitions ?? 0),
+    dueDate: String(r.due_date ?? ''),
+  }
+}
+
+export interface SpeechAnalysisResult {
+  transcript: string
+  corrections: { original: string; corrected: string; note: string }[]
+}
+
+export async function analyzeSpeech(payload: { audio_base64?: string; mime_type?: string; text?: string }): Promise<SpeechAnalysisResult> {
+  const resp = await fetch(`${API_BASE}/speech/analyze`, {
+    method: 'POST',
+    headers: { ...headers, 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+  if (!resp.ok) throw new Error(`analyzeSpeech failed: ${resp.status}`)
+  return resp.json() as Promise<SpeechAnalysisResult>
+}
+
+export async function fetchCorrections(dueBefore?: string): Promise<Correction[]> {
+  const qs = dueBefore ? `?due_before=${dueBefore}` : ''
+  const resp = await fetch(`${API_BASE}/corrections${qs}`, { headers })
+  if (!resp.ok) throw new Error(`fetchCorrections failed: ${resp.status}`)
+  const data = await resp.json() as { items: Record<string, unknown>[] }
+  return data.items.map(mapCorrection)
+}
+
+export async function saveCorrections(items: { original: string; corrected: string; note: string }[]): Promise<Correction[]> {
+  const resp = await fetch(`${API_BASE}/corrections`, {
+    method: 'POST',
+    headers: { ...headers, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ items }),
+  })
+  if (!resp.ok) throw new Error(`saveCorrections failed: ${resp.status}`)
+  const data = await resp.json() as { items: Record<string, unknown>[] }
+  return data.items.map(mapCorrection)
+}
+
+export async function reviewCorrection(correctionId: string, quality: number): Promise<{ correction: Correction; remaining_due: number }> {
+  const resp = await fetch(`${API_BASE}/corrections/${correctionId}/review`, {
+    method: 'POST',
+    headers: { ...headers, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ quality }),
+  })
+  if (!resp.ok) throw new Error(`reviewCorrection failed: ${resp.status}`)
+  const data = await resp.json() as { correction: Record<string, unknown>; remaining_due: number }
+  return { correction: mapCorrection(data.correction), remaining_due: data.remaining_due }
+}
+
+export async function deleteCorrection(correctionId: string): Promise<void> {
+  const resp = await fetch(`${API_BASE}/corrections/${correctionId}`, {
+    method: 'DELETE',
+    headers,
+  })
+  if (!resp.ok) throw new Error(`deleteCorrection failed: ${resp.status}`)
+}
+
+export async function completeRoutineStep(step: RoutineStep): Promise<RoutineProgress> {
+  const resp = await fetch(`${API_BASE}/routine/complete`, {
+    method: 'POST',
+    headers: { ...headers, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ step }),
+  })
+  if (!resp.ok) throw new Error(`completeRoutineStep failed: ${resp.status}`)
+  return resp.json() as Promise<RoutineProgress>
 }

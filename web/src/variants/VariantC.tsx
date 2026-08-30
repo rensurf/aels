@@ -1,6 +1,6 @@
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import type { Phrase, Verb } from '../types'
-import { reviewPhrase } from '../api'
+import { reviewPhrase, completeRoutineStep } from '../api'
 import { getStrengthColor, today } from '../utils'
 import { readStudyData } from '../hooks/useStudyTimer'
 
@@ -13,25 +13,39 @@ interface Props {
   completedDates: string[]
   onPhraseReviewed: (phrase: Phrase) => void
   onStreakUpdated: (streak: number, completedDates: string[]) => void
+  onPhraseStepDone?: () => void
 }
 
-export function VariantC({ phrases, verbs, streak, completedDates, onPhraseReviewed, onStreakUpdated }: Props) {
+export function VariantC({ phrases, verbs, streak, completedDates, onPhraseReviewed, onStreakUpdated, onPhraseStepDone }: Props) {
   const NOW = today()
   const dueItems = phrases.filter(p => p.dueDate <= NOW)
+  const newToday = phrases.filter(p => p.createdAt?.startsWith(NOW))
   const [queue, setQueue] = useState<Phrase[]>(dueItems)
   const [cardState, setCardState] = useState<CardState>('front')
   const [results, setResults] = useState<{ id: string; correct: boolean }[]>([])
   const [showStats, setShowStats] = useState(false)
+  const [showNewSection, setShowNewSection] = useState(true)
 
   const current = queue[0]
   const done = results.length
   const total = dueItems.length
+
+  // due が 0件でマウントした場合もルーティンを完了させる
+  const stepDoneCalledRef = useRef(false)
+  useEffect(() => {
+    if (dueItems.length === 0 && !stepDoneCalledRef.current) {
+      stepDoneCalledRef.current = true
+      completeRoutineStep('phrase').catch(() => {})
+      onPhraseStepDone?.()
+    }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const verbOfDay = verbs.find(v => dueItems.some(p => p.verbId === v.id)) ?? verbs[0]
   const verbOfDayPhrases = verbOfDay ? phrases.filter(p => p.verbId === verbOfDay.id) : []
 
   async function handleResult(correct: boolean) {
     if (!current) return
+    const isLast = queue.length === 1
     setResults(r => [...r, { id: current.id, correct }])
     setQueue(q => q.slice(1))
     setCardState('front')
@@ -44,6 +58,11 @@ export function VariantC({ phrases, verbs, streak, completedDates, onPhraseRevie
         const newDate = new Date().toISOString().slice(0, 10)
         const newDates = completedDates.includes(newDate) ? completedDates : [...completedDates, newDate].sort()
         onStreakUpdated(result.streak, newDates)
+      }
+      if (isLast && !stepDoneCalledRef.current) {
+        stepDoneCalledRef.current = true
+        await completeRoutineStep('phrase')
+        onPhraseStepDone?.()
       }
     } catch {
       // SM-2 update is best-effort; UI already updated
@@ -91,6 +110,36 @@ export function VariantC({ phrases, verbs, streak, completedDates, onPhraseRevie
           </div>
         </div>
       </div>
+
+      {/* Today's new phrases */}
+      {showNewSection && newToday.length > 0 && (
+        <div style={{ padding: '0 24px', marginBottom: 20 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: '#818cf8', letterSpacing: '0.06em' }}>
+              📌 今日追加 {newToday.length}件
+            </div>
+            <button
+              onClick={() => setShowNewSection(false)}
+              style={{ fontSize: 11, color: '#475569', background: 'none', border: 'none', cursor: 'pointer' }}
+            >
+              全部見た ✓
+            </button>
+          </div>
+          <div style={{ display: 'flex', gap: 10, overflowX: 'auto', paddingBottom: 4 }}>
+            {newToday.map(p => (
+              <div key={p.id} style={{
+                flexShrink: 0, width: 160,
+                background: 'rgba(99,102,241,0.08)',
+                border: '1px solid rgba(99,102,241,0.2)',
+                borderRadius: 10, padding: '10px 12px',
+              }}>
+                <div style={{ fontSize: 13, color: '#e2e8f0', lineHeight: 1.5, marginBottom: 4 }}>{p.text}</div>
+                <div style={{ fontSize: 11, color: '#64748b' }}>{p.japanese}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Progress */}
       <div style={{ padding: '0 24px', marginBottom: 24 }}>
@@ -245,11 +294,11 @@ function StatsPanel({ streak, completedDates, onClose }: { streak: number; compl
   return (
     <div
       onClick={onClose}
-      style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'flex-end', zIndex: 100 }}
+      style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', zIndex: 100 }}
     >
       <div
         onClick={e => e.stopPropagation()}
-        style={{ width: '100%', maxHeight: '88vh', overflowY: 'auto', background: '#0f172a', borderRadius: '20px 20px 0 0', padding: '20px 20px 48px', border: '1px solid #1e293b' }}
+        style={{ width: '100%', maxWidth: 520, maxHeight: '88vh', overflowY: 'auto', background: '#0f172a', borderRadius: '20px 20px 0 0', padding: '20px 20px 48px', border: '1px solid #1e293b' }}
       >
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
           <div style={{ fontSize: 16, fontWeight: 700, color: '#f1f5f9' }}>学習記録</div>

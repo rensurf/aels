@@ -11,6 +11,9 @@ const TYPE_LABELS: Record<PhraseType, string> = {
   phrasal_verb: '句動詞',
   idiom: 'イディオム',
   fixed_phrase: '固定表現',
+  noun: '名詞',
+  adjective: '形容詞',
+  collocation: 'コロケーション',
 }
 
 const TYPE_COLOR: Record<PhraseType, string> = {
@@ -18,6 +21,9 @@ const TYPE_COLOR: Record<PhraseType, string> = {
   phrasal_verb: '#0891b2',
   idiom: '#7c3aed',
   fixed_phrase: '#059669',
+  noun: '#3b82f6',
+  adjective: '#10b981',
+  collocation: '#f59e0b',
 }
 
 interface EditState {

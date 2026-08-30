@@ -125,6 +125,132 @@ resource "aws_apigatewayv2_route" "post_phrase_alternatives" {
   target    = "integrations/${aws_apigatewayv2_integration.lambda.id}"
 }
 
+resource "aws_apigatewayv2_route" "post_vocab_extract" {
+  api_id    = aws_apigatewayv2_api.aels.id
+  route_key = "POST /vocab/extract"
+  target    = "integrations/${aws_apigatewayv2_integration.lambda.id}"
+}
+
+resource "aws_apigatewayv2_route" "post_topics" {
+  api_id    = aws_apigatewayv2_api.aels.id
+  route_key = "POST /topics"
+  target    = "integrations/${aws_apigatewayv2_integration.lambda.id}"
+}
+
+resource "aws_apigatewayv2_route" "put_topic" {
+  api_id    = aws_apigatewayv2_api.aels.id
+  route_key = "PUT /topics/{topic_id}"
+  target    = "integrations/${aws_apigatewayv2_integration.lambda.id}"
+}
+
+resource "aws_apigatewayv2_route" "delete_topic" {
+  api_id    = aws_apigatewayv2_api.aels.id
+  route_key = "DELETE /topics/{topic_id}"
+  target    = "integrations/${aws_apigatewayv2_integration.lambda.id}"
+}
+
+resource "aws_apigatewayv2_route" "get_topics" {
+  api_id    = aws_apigatewayv2_api.aels.id
+  route_key = "GET /topics"
+  target    = "integrations/${aws_apigatewayv2_integration.lambda.id}"
+}
+
+resource "aws_apigatewayv2_route" "get_topics_today" {
+  api_id    = aws_apigatewayv2_api.aels.id
+  route_key = "GET /topics/today"
+  target    = "integrations/${aws_apigatewayv2_integration.lambda.id}"
+}
+
+resource "aws_apigatewayv2_route" "post_topic_bullets" {
+  api_id    = aws_apigatewayv2_api.aels.id
+  route_key = "POST /topics/{topic_id}/bullets"
+  target    = "integrations/${aws_apigatewayv2_integration.lambda.id}"
+}
+
+resource "aws_apigatewayv2_route" "put_topic_bullet" {
+  api_id    = aws_apigatewayv2_api.aels.id
+  route_key = "PUT /topics/{topic_id}/bullets/{bullet_id}"
+  target    = "integrations/${aws_apigatewayv2_integration.lambda.id}"
+}
+
+resource "aws_apigatewayv2_route" "delete_topic_bullet" {
+  api_id    = aws_apigatewayv2_api.aels.id
+  route_key = "DELETE /topics/{topic_id}/bullets/{bullet_id}"
+  target    = "integrations/${aws_apigatewayv2_integration.lambda.id}"
+}
+
+resource "aws_apigatewayv2_route" "post_topic_keywords" {
+  api_id    = aws_apigatewayv2_api.aels.id
+  route_key = "POST /topics/{topic_id}/keywords"
+  target    = "integrations/${aws_apigatewayv2_integration.lambda.id}"
+}
+
+resource "aws_apigatewayv2_route" "post_topic_session" {
+  api_id    = aws_apigatewayv2_api.aels.id
+  route_key = "POST /topics/{topic_id}/session"
+  target    = "integrations/${aws_apigatewayv2_integration.lambda.id}"
+}
+
+resource "aws_apigatewayv2_route" "post_topic_review" {
+  api_id    = aws_apigatewayv2_api.aels.id
+  route_key = "POST /topics/{topic_id}/review"
+  target    = "integrations/${aws_apigatewayv2_integration.lambda.id}"
+}
+
+resource "aws_apigatewayv2_route" "post_topic_corrections" {
+  api_id    = aws_apigatewayv2_api.aels.id
+  route_key = "POST /topics/{topic_id}/corrections"
+  target    = "integrations/${aws_apigatewayv2_integration.lambda.id}"
+}
+
+resource "aws_apigatewayv2_route" "delete_topic_correction" {
+  api_id    = aws_apigatewayv2_api.aels.id
+  route_key = "DELETE /topics/{topic_id}/corrections/{correction_id}"
+  target    = "integrations/${aws_apigatewayv2_integration.lambda.id}"
+}
+
+resource "aws_apigatewayv2_route" "post_speech_analyze" {
+  api_id    = aws_apigatewayv2_api.aels.id
+  route_key = "POST /speech/analyze"
+  target    = "integrations/${aws_apigatewayv2_integration.lambda.id}"
+}
+
+resource "aws_apigatewayv2_route" "get_corrections" {
+  api_id    = aws_apigatewayv2_api.aels.id
+  route_key = "GET /corrections"
+  target    = "integrations/${aws_apigatewayv2_integration.lambda.id}"
+}
+
+resource "aws_apigatewayv2_route" "post_corrections" {
+  api_id    = aws_apigatewayv2_api.aels.id
+  route_key = "POST /corrections"
+  target    = "integrations/${aws_apigatewayv2_integration.lambda.id}"
+}
+
+resource "aws_apigatewayv2_route" "post_correction_review" {
+  api_id    = aws_apigatewayv2_api.aels.id
+  route_key = "POST /corrections/{correction_id}/review"
+  target    = "integrations/${aws_apigatewayv2_integration.lambda.id}"
+}
+
+resource "aws_apigatewayv2_route" "delete_correction" {
+  api_id    = aws_apigatewayv2_api.aels.id
+  route_key = "DELETE /corrections/{correction_id}"
+  target    = "integrations/${aws_apigatewayv2_integration.lambda.id}"
+}
+
+resource "aws_apigatewayv2_route" "get_routine" {
+  api_id    = aws_apigatewayv2_api.aels.id
+  route_key = "GET /routine"
+  target    = "integrations/${aws_apigatewayv2_integration.lambda.id}"
+}
+
+resource "aws_apigatewayv2_route" "post_routine_complete" {
+  api_id    = aws_apigatewayv2_api.aels.id
+  route_key = "POST /routine/complete"
+  target    = "integrations/${aws_apigatewayv2_integration.lambda.id}"
+}
+
 resource "aws_apigatewayv2_stage" "default" {
   api_id      = aws_apigatewayv2_api.aels.id
   name        = "$default"

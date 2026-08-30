@@ -5,6 +5,7 @@ from decimal import Decimal
 from src.config import (
     DYNAMODB_SESSION_TABLE, TELEGRAM_BOT_TOKEN, SQS_WORKER_QUEUE_URL,
     DYNAMODB_PHRASES_TABLE, DYNAMODB_VERBS_TABLE, DYNAMODB_THREADS_TABLE, DYNAMODB_STATS_TABLE,
+    DYNAMODB_TOPICS_TABLE, DYNAMODB_CORRECTIONS_TABLE,
     WEB_API_KEY, WEB_USER_ID,
     COSMOS_ENDPOINT, COSMOS_KEY, COSMOS_DATABASE, COSMOS_GRAPH,
 )
@@ -21,12 +22,20 @@ from src.db.stats import StatsClient
 from src.tools.verb_tool import generate_verb_patterns
 from src.tools.chat_tool import chat_with_teacher
 from src.tools.analyze_tool import analyze_phrase
+from src.tools.vocab_extract_tool import extract_vocab
+from src.db.topics import TopicsClient
+from src.db.corrections import CorrectionsClient
+from src.tools.speech_tool import analyze_speech
+from src.tools.keywords_tool import extract_levels
+from src.tools.speech_correction_tool import transcribe_audio, analyze_corrections
 
 session_client = SessionClient(table_name=DYNAMODB_SESSION_TABLE)
 phrases_client = PhrasesClient(table_name=DYNAMODB_PHRASES_TABLE)
 verbs_client = VerbsClient(table_name=DYNAMODB_VERBS_TABLE)
 threads_client = ThreadsClient(table_name=DYNAMODB_THREADS_TABLE)
 stats_client = StatsClient(table_name=DYNAMODB_STATS_TABLE)
+topics_client = TopicsClient(table_name=DYNAMODB_TOPICS_TABLE)
+corrections_client = CorrectionsClient(table_name=DYNAMODB_CORRECTIONS_TABLE)
 sqs = boto3.client("sqs", region_name="ap-southeast-2")
 _graph = GremlinClient(
     endpoint=COSMOS_ENDPOINT,
@@ -387,6 +396,21 @@ def _handle_post_chat(event: dict) -> dict:
         return _json_response(500, {"error": str(e)})
 
 
+def _handle_post_vocab_extract(event: dict) -> dict:
+    if not _authorized(event):
+        return _json_response(401, {"error": "Unauthorized"})
+    try:
+        body = json.loads(event.get("body") or "{}")
+        text = body.get("text", "").strip()
+        if not text:
+            return _json_response(400, {"error": "text is required"})
+        items = extract_vocab(text)
+        return _json_response(200, {"items": items})
+    except Exception as e:
+        print(f"[POST /vocab/extract] error: {e}")
+        return _json_response(500, {"error": str(e)})
+
+
 def _handle_post_analyze(event: dict) -> dict:
     if not _authorized(event):
         return _json_response(401, {"error": "Unauthorized"})
@@ -518,7 +542,16 @@ def _handle_get_stats(event: dict) -> dict:
     if not WEB_USER_ID:
         return _json_response(503, {"error": "WEB_USER_ID not configured"})
     try:
-        return _json_response(200, stats_client.get_stats(user_id=WEB_USER_ID))
+        from datetime import date as _date, timedelta as _td
+        stats = stats_client.get_stats(user_id=WEB_USER_ID)
+        today = _date.today().isoformat()
+        yesterday = (_date.today() - _td(days=1)).isoformat()
+        # Streak breaks only when overdue phrases exist (missed review day)
+        if stats["last_completed_date"] != today:
+            overdue = phrases_client.get_due_count(user_id=WEB_USER_ID, due_before=yesterday)
+            if overdue > 0:
+                stats["current_streak"] = 0
+        return _json_response(200, stats)
     except Exception as e:
         print(f"[GET /stats] error: {e}")
         return _json_response(500, {"error": str(e)})
@@ -534,6 +567,333 @@ def _handle_get_verb(event: dict) -> dict:
     if verb is None:
         return _json_response(404, {"error": "Not found"})
     return _json_response(200, verb)
+
+
+def _handle_get_topics(event: dict) -> dict:
+    if not _authorized(event):
+        return _json_response(401, {"error": "Unauthorized"})
+    if not WEB_USER_ID:
+        return _json_response(503, {"error": "WEB_USER_ID not configured"})
+    topics = topics_client.list_topics(user_id=WEB_USER_ID)
+    return _json_response(200, topics)
+
+
+def _handle_get_topics_today(event: dict) -> dict:
+    if not _authorized(event):
+        return _json_response(401, {"error": "Unauthorized"})
+    if not WEB_USER_ID:
+        return _json_response(503, {"error": "WEB_USER_ID not configured"})
+    due = topics_client.get_due_topics(user_id=WEB_USER_ID)
+    return _json_response(200, due)
+
+
+def _handle_post_topic_bullets(event: dict) -> dict:
+    if not _authorized(event):
+        return _json_response(401, {"error": "Unauthorized"})
+    if not WEB_USER_ID:
+        return _json_response(503, {"error": "WEB_USER_ID not configured"})
+    topic_id = (event.get("pathParameters") or {}).get("topic_id", "")
+    try:
+        body = json.loads(event.get("body") or "{}")
+        topic = topics_client.add_bullet(user_id=WEB_USER_ID, topic_id=topic_id, bullet=body)
+        return _json_response(200, topic)
+    except Exception as e:
+        print(f"[POST /topics/bullets] error: {e}")
+        return _json_response(500, {"error": str(e)})
+
+
+def _handle_put_topic_bullet(event: dict) -> dict:
+    if not _authorized(event):
+        return _json_response(401, {"error": "Unauthorized"})
+    if not WEB_USER_ID:
+        return _json_response(503, {"error": "WEB_USER_ID not configured"})
+    params = event.get("pathParameters") or {}
+    topic_id = params.get("topic_id", "")
+    bullet_id = params.get("bullet_id", "")
+    try:
+        body = json.loads(event.get("body") or "{}")
+        topic = topics_client.update_bullet(user_id=WEB_USER_ID, topic_id=topic_id, bullet_id=bullet_id, updates=body)
+        return _json_response(200, topic)
+    except Exception as e:
+        print(f"[PUT /topics/bullets] error: {e}")
+        return _json_response(500, {"error": str(e)})
+
+
+def _handle_delete_topic_bullet(event: dict) -> dict:
+    if not _authorized(event):
+        return _json_response(401, {"error": "Unauthorized"})
+    if not WEB_USER_ID:
+        return _json_response(503, {"error": "WEB_USER_ID not configured"})
+    params = event.get("pathParameters") or {}
+    topic_id = params.get("topic_id", "")
+    bullet_id = params.get("bullet_id", "")
+    try:
+        topic = topics_client.delete_bullet(user_id=WEB_USER_ID, topic_id=topic_id, bullet_id=bullet_id)
+        return _json_response(200, topic)
+    except Exception as e:
+        print(f"[DELETE /topics/bullets] error: {e}")
+        return _json_response(500, {"error": str(e)})
+
+
+def _handle_post_topics(event: dict) -> dict:
+    if not _authorized(event):
+        return _json_response(401, {"error": "Unauthorized"})
+    if not WEB_USER_ID:
+        return _json_response(503, {"error": "WEB_USER_ID not configured"})
+    try:
+        body = json.loads(event.get("body") or "{}")
+        title = body.get("title", "").strip()
+        if not title:
+            return _json_response(400, {"error": "title is required"})
+        topic = topics_client.put_topic(user_id=WEB_USER_ID, topic=body)
+        return _json_response(201, topic)
+    except Exception as e:
+        print(f"[POST /topics] error: {e}")
+        return _json_response(500, {"error": str(e)})
+
+
+def _handle_put_topic(event: dict) -> dict:
+    if not _authorized(event):
+        return _json_response(401, {"error": "Unauthorized"})
+    if not WEB_USER_ID:
+        return _json_response(503, {"error": "WEB_USER_ID not configured"})
+    try:
+        topic_id = (event.get("pathParameters") or {}).get("topic_id", "")
+        body = json.loads(event.get("body") or "{}")
+        updated = topics_client.update_topic(user_id=WEB_USER_ID, topic_id=topic_id, updates=body)
+        return _json_response(200, updated)
+    except Exception as e:
+        print(f"[PUT /topics] error: {e}")
+        return _json_response(500, {"error": str(e)})
+
+
+def _handle_delete_topic(event: dict) -> dict:
+    if not _authorized(event):
+        return _json_response(401, {"error": "Unauthorized"})
+    if not WEB_USER_ID:
+        return _json_response(503, {"error": "WEB_USER_ID not configured"})
+    try:
+        topic_id = (event.get("pathParameters") or {}).get("topic_id", "")
+        topics_client.delete_topic(user_id=WEB_USER_ID, topic_id=topic_id)
+        return _json_response(200, {"deleted": topic_id})
+    except Exception as e:
+        print(f"[DELETE /topics] error: {e}")
+        return _json_response(500, {"error": str(e)})
+
+
+def _handle_post_topic_keywords(event: dict) -> dict:
+    if not _authorized(event):
+        return _json_response(401, {"error": "Unauthorized"})
+    if not WEB_USER_ID:
+        return _json_response(503, {"error": "WEB_USER_ID not configured"})
+    topic_id = (event.get("pathParameters") or {}).get("topic_id", "")
+    try:
+        body = json.loads(event.get("body") or "{}")
+        script = body.get("script", "").strip()
+        if not script:
+            return _json_response(400, {"error": "script is required"})
+        levels = extract_levels(script)
+        updated = topics_client.update_topic(user_id=WEB_USER_ID, topic_id=topic_id, updates={"levels": levels})
+        return _json_response(200, updated)
+    except Exception as e:
+        print(f"[POST /topics/keywords] error: {e}")
+        return _json_response(500, {"error": str(e)})
+
+
+def _handle_post_topic_session(event: dict) -> dict:
+    if not _authorized(event):
+        return _json_response(401, {"error": "Unauthorized"})
+    if not WEB_USER_ID:
+        return _json_response(503, {"error": "WEB_USER_ID not configured"})
+    topic_id = (event.get("pathParameters") or {}).get("topic_id", "")
+    try:
+        body = json.loads(event.get("body") or "{}")
+        user_text = body.get("text", "")
+        if not user_text:
+            return _json_response(400, {"error": "text is required"})
+        topic = topics_client.get_topic(user_id=WEB_USER_ID, topic_id=topic_id)
+        if not topic:
+            return _json_response(404, {"error": "Topic not found"})
+        feedback = analyze_speech(
+            user_text=user_text,
+            topic_title=topic.get("title", ""),
+            bullets=topic.get("bullets", []),
+            script=topic.get("script", ""),
+        )
+        return _json_response(200, feedback)
+    except Exception as e:
+        print(f"[POST /topics/session] error: {e}")
+        return _json_response(500, {"error": str(e)})
+
+
+def _handle_post_topic_review(event: dict) -> dict:
+    if not _authorized(event):
+        return _json_response(401, {"error": "Unauthorized"})
+    if not WEB_USER_ID:
+        return _json_response(503, {"error": "WEB_USER_ID not configured"})
+    topic_id = (event.get("pathParameters") or {}).get("topic_id", "")
+    try:
+        body = json.loads(event.get("body") or "{}")
+        quality = int(body.get("quality", 3))
+        topic = topics_client.update_sm2(user_id=WEB_USER_ID, topic_id=topic_id, quality=quality)
+        return _json_response(200, topic)
+    except Exception as e:
+        print(f"[POST /topics/review] error: {e}")
+        return _json_response(500, {"error": str(e)})
+
+
+def _handle_post_topic_corrections(event: dict) -> dict:
+    if not _authorized(event):
+        return _json_response(401, {"error": "Unauthorized"})
+    if not WEB_USER_ID:
+        return _json_response(503, {"error": "WEB_USER_ID not configured"})
+    topic_id = (event.get("pathParameters") or {}).get("topic_id", "")
+    try:
+        body = json.loads(event.get("body") or "{}")
+        topic = topics_client.add_correction(user_id=WEB_USER_ID, topic_id=topic_id, correction=body)
+        return _json_response(200, topic)
+    except Exception as e:
+        print(f"[POST /topics/corrections] error: {e}")
+        return _json_response(500, {"error": str(e)})
+
+
+def _handle_post_speech_analyze(event: dict) -> dict:
+    if not _authorized(event):
+        return _json_response(401, {"error": "Unauthorized"})
+    try:
+        body = json.loads(event.get("body") or "{}")
+        text = body.get("text", "").strip()
+        audio_base64 = body.get("audio_base64", "").strip()
+        mime_type = body.get("mime_type", "audio/webm")
+
+        if not text and not audio_base64:
+            return _json_response(400, {"error": "text or audio_base64 is required"})
+
+        if audio_base64:
+            text = transcribe_audio(audio_base64, mime_type)
+
+        corrections = analyze_corrections(text)
+        return _json_response(200, {"transcript": text, "corrections": corrections})
+    except Exception as e:
+        print(f"[POST /speech/analyze] error: {e}")
+        return _json_response(500, {"error": str(e)})
+
+
+def _handle_get_corrections(event: dict) -> dict:
+    if not _authorized(event):
+        return _json_response(401, {"error": "Unauthorized"})
+    if not WEB_USER_ID:
+        return _json_response(503, {"error": "WEB_USER_ID not configured"})
+    try:
+        params = event.get("queryStringParameters") or {}
+        items = corrections_client.list_corrections(
+            user_id=WEB_USER_ID,
+            due_before=params.get("due_before"),
+        )
+        return _json_response(200, {"items": items})
+    except Exception as e:
+        print(f"[GET /corrections] error: {e}")
+        return _json_response(500, {"error": str(e)})
+
+
+def _handle_post_corrections(event: dict) -> dict:
+    if not _authorized(event):
+        return _json_response(401, {"error": "Unauthorized"})
+    if not WEB_USER_ID:
+        return _json_response(503, {"error": "WEB_USER_ID not configured"})
+    try:
+        body = json.loads(event.get("body") or "{}")
+        items = body.get("items", [])
+        if not items:
+            return _json_response(400, {"error": "items is required"})
+        saved = corrections_client.put_corrections(user_id=WEB_USER_ID, items=items)
+        return _json_response(201, {"items": saved})
+    except Exception as e:
+        print(f"[POST /corrections] error: {e}")
+        return _json_response(500, {"error": str(e)})
+
+
+def _handle_post_correction_review(event: dict) -> dict:
+    if not _authorized(event):
+        return _json_response(401, {"error": "Unauthorized"})
+    if not WEB_USER_ID:
+        return _json_response(503, {"error": "WEB_USER_ID not configured"})
+    try:
+        correction_id = (event.get("pathParameters") or {}).get("correction_id", "")
+        body = json.loads(event.get("body") or "{}")
+        quality = int(body.get("quality", 0))
+        if not 0 <= quality <= 5:
+            return _json_response(400, {"error": "quality must be 0-5"})
+        updated = corrections_client.update_sm2(
+            user_id=WEB_USER_ID, correction_id=correction_id, quality=quality
+        )
+        from datetime import date as _date
+        today = _date.today().isoformat()
+        remaining = corrections_client.get_due_count(user_id=WEB_USER_ID, due_before=today)
+        return _json_response(200, {"correction": updated, "remaining_due": remaining})
+    except Exception as e:
+        print(f"[POST /corrections/review] error: {e}")
+        return _json_response(500, {"error": str(e)})
+
+
+def _handle_delete_correction(event: dict) -> dict:
+    if not _authorized(event):
+        return _json_response(401, {"error": "Unauthorized"})
+    if not WEB_USER_ID:
+        return _json_response(503, {"error": "WEB_USER_ID not configured"})
+    try:
+        correction_id = (event.get("pathParameters") or {}).get("correction_id", "")
+        corrections_client.delete_correction(user_id=WEB_USER_ID, correction_id=correction_id)
+        return _json_response(200, {"deleted": correction_id})
+    except Exception as e:
+        print(f"[DELETE /corrections] error: {e}")
+        return _json_response(500, {"error": str(e)})
+
+
+def _handle_get_routine(event: dict) -> dict:
+    if not _authorized(event):
+        return _json_response(401, {"error": "Unauthorized"})
+    if not WEB_USER_ID:
+        return _json_response(503, {"error": "WEB_USER_ID not configured"})
+    try:
+        routine = stats_client.get_routine(user_id=WEB_USER_ID)
+        return _json_response(200, routine)
+    except Exception as e:
+        print(f"[GET /routine] error: {e}")
+        return _json_response(500, {"error": str(e)})
+
+
+def _handle_post_routine_complete(event: dict) -> dict:
+    if not _authorized(event):
+        return _json_response(401, {"error": "Unauthorized"})
+    if not WEB_USER_ID:
+        return _json_response(503, {"error": "WEB_USER_ID not configured"})
+    try:
+        body = json.loads(event.get("body") or "{}")
+        step = body.get("step", "").strip()
+        if step not in {"verb", "phrase", "review", "writing"}:
+            return _json_response(400, {"error": "step must be verb | phrase | review | writing"})
+        routine = stats_client.complete_routine_step(user_id=WEB_USER_ID, step=step)
+        return _json_response(200, routine)
+    except Exception as e:
+        print(f"[POST /routine/complete] error: {e}")
+        return _json_response(500, {"error": str(e)})
+
+
+def _handle_delete_topic_correction(event: dict) -> dict:
+    if not _authorized(event):
+        return _json_response(401, {"error": "Unauthorized"})
+    if not WEB_USER_ID:
+        return _json_response(503, {"error": "WEB_USER_ID not configured"})
+    params = event.get("pathParameters") or {}
+    topic_id = params.get("topic_id", "")
+    correction_id = params.get("correction_id", "")
+    try:
+        topic = topics_client.delete_correction(user_id=WEB_USER_ID, topic_id=topic_id, correction_id=correction_id)
+        return _json_response(200, topic)
+    except Exception as e:
+        print(f"[DELETE /topics/corrections] error: {e}")
+        return _json_response(500, {"error": str(e)})
 
 
 def lambda_handler(event, context):
@@ -562,6 +922,8 @@ def lambda_handler(event, context):
         return _handle_delete_verb(event)
     if route_key == "POST /analyze":
         return _handle_post_analyze(event)
+    if route_key == "POST /vocab/extract":
+        return _handle_post_vocab_extract(event)
     if route_key == "POST /threads":
         return _handle_post_threads(event)
     if route_key == "GET /threads":
@@ -572,6 +934,46 @@ def lambda_handler(event, context):
         return _handle_get_stats(event)
     if route_key == "POST /phrases/{phrase_id}/alternatives":
         return _handle_post_phrase_alternatives(event)
+    if route_key == "POST /topics":
+        return _handle_post_topics(event)
+    if route_key == "PUT /topics/{topic_id}":
+        return _handle_put_topic(event)
+    if route_key == "DELETE /topics/{topic_id}":
+        return _handle_delete_topic(event)
+    if route_key == "GET /topics":
+        return _handle_get_topics(event)
+    if route_key == "GET /topics/today":
+        return _handle_get_topics_today(event)
+    if route_key == "POST /topics/{topic_id}/bullets":
+        return _handle_post_topic_bullets(event)
+    if route_key == "PUT /topics/{topic_id}/bullets/{bullet_id}":
+        return _handle_put_topic_bullet(event)
+    if route_key == "DELETE /topics/{topic_id}/bullets/{bullet_id}":
+        return _handle_delete_topic_bullet(event)
+    if route_key == "POST /topics/{topic_id}/keywords":
+        return _handle_post_topic_keywords(event)
+    if route_key == "POST /topics/{topic_id}/session":
+        return _handle_post_topic_session(event)
+    if route_key == "POST /topics/{topic_id}/review":
+        return _handle_post_topic_review(event)
+    if route_key == "POST /topics/{topic_id}/corrections":
+        return _handle_post_topic_corrections(event)
+    if route_key == "DELETE /topics/{topic_id}/corrections/{correction_id}":
+        return _handle_delete_topic_correction(event)
+    if route_key == "GET /routine":
+        return _handle_get_routine(event)
+    if route_key == "POST /routine/complete":
+        return _handle_post_routine_complete(event)
+    if route_key == "POST /speech/analyze":
+        return _handle_post_speech_analyze(event)
+    if route_key == "GET /corrections":
+        return _handle_get_corrections(event)
+    if route_key == "POST /corrections":
+        return _handle_post_corrections(event)
+    if route_key == "POST /corrections/{correction_id}/review":
+        return _handle_post_correction_review(event)
+    if route_key == "DELETE /corrections/{correction_id}":
+        return _handle_delete_correction(event)
 
     body = json.loads(event["body"])
 

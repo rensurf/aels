@@ -40,6 +40,8 @@
 | B | Library | フレーズ一覧（動詞・パターン・レジスター・Due でフィルタ） |
 | C | Daily Focus | フラッシュカード + ストリーク |
 | D | Chat | 質問→回答→フレーズ選択保存 |
+| E | Vocab Extract | テキスト貼り付け → AI が語彙を抽出・チェックして保存 |
+| F | Topics | トピック別スピーチ練習（SM-2 + AI 添削） |
 
 ---
 
@@ -462,9 +464,45 @@ VariantD の「チェックして保存」フローを実際の API に接続す
 
 ---
 
-## due_date 修正 ✅（実装済み）
+## VariantE（語彙抽出）✅（実装済み）
 
-登録当日ではなく翌日（`date.today() + timedelta(days=1)`）から復習に出るよう変更。
+テキストを貼り付けると AI が語彙を抽出し、チェックして phrases に保存するUI。
+
+- `POST /vocab/extract`（`src/tools/vocab_extract_tool.py`）
+- 抽出カテゴリ: noun / adjective / collocation / idiom
+- 各語彙に穴埋め問題（cloze）を自動生成
+- SM-2 の ease_factor をバーで表示（復習強度の可視化）
+- チェックした語彙を `savePhrase()` でまとめて保存
+
+---
+
+## VariantF（Topics スピーチ練習）✅（実装済み）
+
+トピック別にスピーチを練習し、AI が添削するUI。SM-2 で復習スケジュールを管理。
+
+### データモデル
+- `aels-topics` DynamoDB テーブル（PK: user_id, SK: topic_id）
+- GSI: user_id-due_date（due フィルタ用）
+- `src/db/topics.py` で CRUD
+
+### 機能一覧
+- トピック一覧（due / upcoming / done で色分け）
+- スクリプトビュー（テキスト入力 + AI でキュー抽出 `POST /topics/{id}/levels`）
+- スピーチ録音 → AI 添削（`POST /topics/{id}/speech`、`src/tools/speech_tool.py`）
+- 添削履歴の保存・削除（`POST /topics/{id}/corrections`）
+- 復習完了（`POST /topics/{id}/review`）で SM-2 更新
+- ヒントレベル切り替え（full script → key words → no hint）
+
+### API エンドポイント
+- `POST /topics` — トピック作成
+- `GET /topics` — 一覧（due_date フィルタ対応）
+- `PUT /topics/{topic_id}` — 編集（script・levels・title）
+- `DELETE /topics/{topic_id}` — 削除
+- `POST /topics/{topic_id}/speech` — スピーチ添削（AI）
+- `POST /topics/{topic_id}/review` — SM-2 更新
+- `POST /topics/{topic_id}/corrections` — 添削を保存
+- `DELETE /topics/{topic_id}/corrections/{correction_id}` — 添削削除
+- `POST /topics/{topic_id}/levels` — キュー抽出（`src/tools/keywords_tool.py`）
 
 ---
 

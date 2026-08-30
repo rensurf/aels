@@ -1,6 +1,9 @@
 from datetime import date, timedelta
+from typing import Literal
 
 import boto3
+
+RoutineStep = Literal["verb", "phrase", "review", "writing"]
 
 
 class StatsClient:
@@ -58,3 +61,21 @@ class StatsClient:
             "last_completed_date": today,
             "completed_dates": sorted([*stats["completed_dates"], today]),
         }
+
+    def get_routine(self, user_id: str) -> dict:
+        today = date.today().isoformat()
+        resp = self.table.get_item(Key={"user_id": user_id})
+        item = resp.get("Item") or {}
+        if item.get("routine_date") != today:
+            return {"date": today, "completed": []}
+        completed = item.get("routine_completed", set())
+        return {"date": today, "completed": sorted(list(completed))}
+
+    def complete_routine_step(self, user_id: str, step: RoutineStep) -> dict:
+        today = date.today().isoformat()
+        self.table.update_item(
+            Key={"user_id": user_id},
+            UpdateExpression="SET routine_date = :d ADD routine_completed :s",
+            ExpressionAttributeValues={":d": today, ":s": {step}},
+        )
+        return self.get_routine(user_id)

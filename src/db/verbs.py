@@ -40,5 +40,7 @@ class VerbsClient:
             item["noun_form"] = verb["noun_form"]
         if verb.get("adj_form"):
             item["adj_form"] = verb["adj_form"]
+        if verb.get("memo"):
+            item["memo"] = verb["memo"]
         self.table.put_item(Item=item)
         return _normalize(item)

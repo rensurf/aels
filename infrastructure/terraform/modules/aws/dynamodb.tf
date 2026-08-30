@@ -95,6 +95,76 @@ resource "aws_dynamodb_table" "user_stats" {
   }
 }
 
+resource "aws_dynamodb_table" "topics" {
+  name         = "aels-topics"
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "user_id"
+  range_key    = "topic_id"
+
+  attribute {
+    name = "user_id"
+    type = "S"
+  }
+
+  attribute {
+    name = "topic_id"
+    type = "S"
+  }
+
+  attribute {
+    name = "due_date"
+    type = "S"
+  }
+
+  global_secondary_index {
+    name            = "user_id-due_date-index"
+    hash_key        = "user_id"
+    range_key       = "due_date"
+    projection_type = "ALL"
+  }
+}
+
+resource "aws_dynamodb_table" "corrections" {
+  name         = "aels-corrections"
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "user_id"
+  range_key    = "correction_id"
+
+  attribute {
+    name = "user_id"
+    type = "S"
+  }
+
+  attribute {
+    name = "correction_id"
+    type = "S"
+  }
+
+  attribute {
+    name = "due_date"
+    type = "S"
+  }
+
+  attribute {
+    name = "submitted_at"
+    type = "S"
+  }
+
+  global_secondary_index {
+    name            = "user_id-due_date-index"
+    hash_key        = "user_id"
+    range_key       = "due_date"
+    projection_type = "ALL"
+  }
+
+  global_secondary_index {
+    name            = "user_id-submitted_at-index"
+    hash_key        = "user_id"
+    range_key       = "submitted_at"
+    projection_type = "ALL"
+  }
+}
+
 resource "aws_dynamodb_table" "chat_threads" {
   name         = "aels-chat-threads"
   billing_mode = "PAY_PER_REQUEST"

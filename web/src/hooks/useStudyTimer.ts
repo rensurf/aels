@@ -34,13 +34,13 @@ export function useStudyTimer(): void {
     }
 
     document.addEventListener('visibilitychange', onVisibilityChange)
-    window.addEventListener('beforeunload', flush)
+    window.addEventListener('pagehide', flush)
     const interval = setInterval(flush, 60000)
 
     return () => {
       flush()
       document.removeEventListener('visibilitychange', onVisibilityChange)
-      window.removeEventListener('beforeunload', flush)
+      window.removeEventListener('pagehide', flush)
       clearInterval(interval)
     }
   }, [])
