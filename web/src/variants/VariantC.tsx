@@ -222,12 +222,20 @@ export function VariantC({ phrases, verbs, streak, completedDates, onPhraseRevie
                       <div style={{ fontSize: 13, color: '#818cf8', marginBottom: 12 }}>English</div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
                         <div style={{ fontSize: 17, color: '#e0e7ff', lineHeight: 1.6, flex: 1 }}>
-                          {current.text}
+                          {current.text.split(' ').map((word, i) => (
+                            <span
+                              key={i}
+                              onClick={e => { e.stopPropagation(); speak(word.replace(/[^a-zA-Z'-]/g, '')) }}
+                              style={{ cursor: 'pointer', borderRadius: 3, padding: '0 1px' }}
+                              onMouseEnter={e => (e.currentTarget.style.background = 'rgba(129,140,248,0.15)')}
+                              onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                            >{word}{' '}</span>
+                          ))}
                         </div>
                         <button
                           onClick={e => { e.stopPropagation(); speak(current.text) }}
                           style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#475569', padding: 6, flexShrink: 0, borderRadius: 8, lineHeight: 1 }}
-                          title="発音を聞く"
+                          title="フレーズ全体を聞く"
                         >
                           🔊
                         </button>
