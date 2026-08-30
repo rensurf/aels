@@ -19,6 +19,7 @@ docs/en/internal/
 **/terraform.tfstate
 **/terraform.tfstate.backup
 **/tfplan
+**/tfplan_*
 **/placeholder.zip
 
 # Backup files (user data)
@@ -26,5 +27,15 @@ docs/backup_phrases_*.json
 
 # Build artifacts
 deployment.zip
+deploy.zip
+deploy_local.zip
 dist/
 dist2/
+package_tmp/
+
+# Test coverage
+.coverage
+
+# Prototypes (throwaway)
+prototype/
+web/src/prototype/
