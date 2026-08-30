@@ -6,6 +6,16 @@ import { readStudyData } from '../hooks/useStudyTimer'
 
 type CardState = 'front' | 'back'
 
+function buildCloze(phrase: string, examples: string[]): { before: string; match: string; after: string } | null {
+  for (const ex of examples) {
+    const idx = ex.toLowerCase().indexOf(phrase.toLowerCase())
+    if (idx !== -1) {
+      return { before: ex.slice(0, idx), match: ex.slice(idx, idx + phrase.length), after: ex.slice(idx + phrase.length) }
+    }
+  }
+  return null
+}
+
 interface Props {
   phrases: Phrase[]
   verbs: Verb[]
@@ -164,63 +174,78 @@ export function VariantC({ phrases, verbs, streak, completedDates, onPhraseRevie
           <CompletionView results={results} streak={streak} completedDates={completedDates} />
         ) : current ? (
           <>
-            <div
-              onClick={() => setCardState(s => s === 'front' ? 'back' : 'front')}
-              style={{
-                width: '100%',
-                maxWidth: 400,
-                minHeight: 180,
-                background: cardState === 'front' ? '#1e293b' : '#312e81',
-                borderRadius: 16,
-                padding: '24px 20px',
-                display: 'flex',
-                flexDirection: 'column',
-                justifyContent: 'center',
-                cursor: 'pointer',
-                border: cardState === 'front' ? '1px solid #334155' : '1px solid #4338ca',
-                transition: 'background 0.3s, border 0.3s',
-                boxShadow: '0 20px 60px rgba(0,0,0,0.4)',
-              }}
-            >
-              {cardState === 'front' ? (
-                <>
-                  <div style={{ fontSize: 19, color: '#f1f5f9', lineHeight: 1.5, marginBottom: 20 }}>
-                    {current.japanese}
-                  </div>
-                  <div style={{ fontSize: 13, color: '#475569', textAlign: 'center' }}>
-                    タップして英語を確認 →
-                  </div>
-                </>
-              ) : (
-                <>
-                  <div style={{ fontSize: 13, color: '#818cf8', marginBottom: 12 }}>English</div>
-                  <div style={{ fontSize: 17, color: '#e0e7ff', lineHeight: 1.6, marginBottom: 14 }}>
-                    {current.text}
-                  </div>
-                  {current.note && (
-                    <div style={{ fontSize: 13, color: '#6366f1', background: '#1e1b4b', padding: '10px 14px', borderRadius: 8, lineHeight: 1.6, marginBottom: 14 }}>
-                      {current.note}
-                    </div>
-                  )}
-                  {current.alternatives && current.alternatives.length > 0 && (
-                    <div style={{ borderTop: '1px solid #334155', paddingTop: 12 }}>
-                      <div style={{ fontSize: 11, color: '#475569', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.06em' }}>他の言い方</div>
-                      {current.alternatives.map((alt, i) => (
-                        <div key={i} style={{ marginBottom: 10 }}>
-                          <div style={{ fontSize: 14, color: '#c7d2fe', lineHeight: 1.6 }}>{alt.text}</div>
-                          {alt.note && (
-                            <div style={{ fontSize: 12, color: '#6366f1', marginTop: 3, lineHeight: 1.5 }}>{alt.note}</div>
-                          )}
+            {(() => {
+              const cloze = current.examples?.length ? buildCloze(current.text, current.examples) : null
+              return (
+                <div
+                  onClick={() => setCardState(s => s === 'front' ? 'back' : 'front')}
+                  style={{
+                    width: '100%',
+                    maxWidth: 400,
+                    minHeight: 180,
+                    background: cardState === 'front' ? '#1e293b' : '#312e81',
+                    borderRadius: 16,
+                    padding: '24px 20px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    justifyContent: 'center',
+                    cursor: 'pointer',
+                    border: cardState === 'front' ? '1px solid #334155' : '1px solid #4338ca',
+                    transition: 'background 0.3s, border 0.3s',
+                    boxShadow: '0 20px 60px rgba(0,0,0,0.4)',
+                  }}
+                >
+                  {cardState === 'front' ? (
+                    <>
+                      <div style={{ fontSize: 19, color: '#f1f5f9', lineHeight: 1.5, marginBottom: cloze ? 16 : 20 }}>
+                        {current.japanese}
+                      </div>
+                      {cloze && (
+                        <div style={{ fontSize: 15, color: '#94a3b8', lineHeight: 1.7, marginBottom: 16, fontStyle: 'italic' }}>
+                          "{cloze.before}<span style={{ background: '#0f172a', borderRadius: 3, padding: '1px 6px', letterSpacing: '0.15em', color: '#0f172a', border: '1px solid #475569' }}>{'_'.repeat(Math.max(cloze.match.length, 4))}</span>{cloze.after}"
                         </div>
-                      ))}
-                    </div>
+                      )}
+                      <div style={{ fontSize: 13, color: '#475569', textAlign: 'center' }}>
+                        タップして答えを確認 →
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div style={{ fontSize: 13, color: '#818cf8', marginBottom: 12 }}>English</div>
+                      <div style={{ fontSize: 17, color: '#e0e7ff', lineHeight: 1.6, marginBottom: 10 }}>
+                        {current.text}
+                      </div>
+                      {cloze && (
+                        <div style={{ fontSize: 14, color: '#94a3b8', lineHeight: 1.7, marginBottom: 14, fontStyle: 'italic' }}>
+                          "{cloze.before}<span style={{ color: '#818cf8', textDecoration: 'underline', textUnderlineOffset: 3, fontWeight: 600, fontStyle: 'normal' }}>{cloze.match}</span>{cloze.after}"
+                        </div>
+                      )}
+                      {current.note && (
+                        <div style={{ fontSize: 13, color: '#6366f1', background: '#1e1b4b', padding: '10px 14px', borderRadius: 8, lineHeight: 1.6, marginBottom: 14 }}>
+                          {current.note}
+                        </div>
+                      )}
+                      {current.alternatives && current.alternatives.length > 0 && (
+                        <div style={{ borderTop: '1px solid #334155', paddingTop: 12 }}>
+                          <div style={{ fontSize: 11, color: '#475569', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.06em' }}>他の言い方</div>
+                          {current.alternatives.map((alt, i) => (
+                            <div key={i} style={{ marginBottom: 10 }}>
+                              <div style={{ fontSize: 14, color: '#c7d2fe', lineHeight: 1.6 }}>{alt.text}</div>
+                              {alt.note && (
+                                <div style={{ fontSize: 12, color: '#6366f1', marginTop: 3, lineHeight: 1.5 }}>{alt.note}</div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      <div style={{ fontSize: 12, color: '#334155', textAlign: 'center', marginTop: 16 }}>
+                        タップして問題に戻る ←
+                      </div>
+                    </>
                   )}
-                  <div style={{ fontSize: 12, color: '#334155', textAlign: 'center', marginTop: 16 }}>
-                    タップして問題に戻る ←
-                  </div>
-                </>
-              )}
-            </div>
+                </div>
+              )
+            })()}
 
             {cardState === 'back' && (
               <div style={{ display: 'flex', gap: 12, marginTop: 24, width: '100%', maxWidth: 480 }}>
