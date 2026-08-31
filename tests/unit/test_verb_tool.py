@@ -1,5 +1,5 @@
 import json
-from unittest.mock import call, patch
+from unittest.mock import patch
 
 from src.tools.verb_tool import generate_verb_patterns
 

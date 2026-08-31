@@ -2,7 +2,8 @@
 apply_phrase_review.py の適用結果を検証するスクリプト。
 Usage: python scripts/verify_phrase_review.py
 """
-import os, sys
+import os
+import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from dotenv import load_dotenv
@@ -19,7 +20,7 @@ rows = graph.execute(queries.get_all_phrases(USER_ID))
 texts = [r["text"][0] for r in rows if r.get("text")]
 
 print(f"Total phrases in DB: {len(texts)}")
-print(f"  (before: 323, expected: 323 - 2 deleted + 20 new = 341)")
+print("  (before: 323, expected: 323 - 2 deleted + 20 new = 341)")
 
 UPDATES = [
     ("autonomy",    "I like having autonomy over what I build."),

@@ -10,7 +10,7 @@ mock_gremlin.execute.return_value = []
 with patch("src.graph.client.GremlinClient", return_value=mock_gremlin), \
      patch("src.tools.memory_tool.client", mock_gremlin):
 
-    from src.adapters.message_types import IncomingMessage, OutgoingMessage
+    from src.adapters.message_types import IncomingMessage
     from src.agent.teacher_agent import handle_message
 
 text = " ".join(sys.argv[1:]) if len(sys.argv) > 1 else "承知しました を英語で教えて"

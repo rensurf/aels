@@ -73,7 +73,6 @@ def test_put_verb_preserves_caller_created_at():
 
 
 def test_put_verb_returns_normalized_item():
-    from decimal import Decimal
     client, mock_table = _make_client()
     verb = {"verb_id": "see", "patterns": [], "confusable_with": [], "similar_to": []}
 
