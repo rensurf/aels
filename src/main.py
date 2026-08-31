@@ -790,8 +790,8 @@ def _handle_post_speech_analyze(event: dict) -> dict:
         if audio_base64:
             text = transcribe_audio(audio_base64, mime_type)
 
-        corrections = analyze_corrections(text)
-        return _json_response(200, {"transcript": text, "corrections": corrections})
+        result = analyze_corrections(text)
+        return _json_response(200, {"transcript": text, "summary": result["summary"], "corrections": result["corrections"]})
     except Exception as e:
         print(f"[POST /speech/analyze] error: {e}")
         return _json_response(500, {"error": str(e)})

@@ -61,7 +61,7 @@ type SubmitState =
   | { phase: 'transcribing' }
   | { phase: 'transcript'; text: string }
   | { phase: 'analyzing'; text: string }
-  | { phase: 'candidates'; text: string; items: CandidateItem[] }
+  | { phase: 'candidates'; text: string; items: CandidateItem[]; summary: string }
   | { phase: 'saving' }
   | { phase: 'done'; count: number }
 
@@ -85,7 +85,7 @@ function SubmitTab({ onSaved, onWritingStepDone }: SubmitTabProps) {
         setState({ phase: 'transcribing' })
         try {
           const result = await analyzeSpeech({ audio_base64: b64, mime_type: mime })
-          setState({ phase: 'candidates', text: result.transcript, items: result.corrections.map(c => ({ ...c, checked: true })) })
+          setState({ phase: 'candidates', text: result.transcript, summary: result.summary, items: result.corrections.map(c => ({ ...c, checked: true })) })
         } catch (e) {
           setError(String(e))
           setState({ phase: 'idle' })
@@ -102,7 +102,7 @@ function SubmitTab({ onSaved, onWritingStepDone }: SubmitTabProps) {
     setState({ phase: 'analyzing', text })
     try {
       const result: SpeechAnalysisResult = await analyzeSpeech({ text })
-      setState({ phase: 'candidates', text, items: result.corrections.map(c => ({ ...c, checked: true })) })
+      setState({ phase: 'candidates', text, summary: result.summary, items: result.corrections.map(c => ({ ...c, checked: true })) })
     } catch (e) {
       setError(String(e))
       setState({ phase: 'transcript', text })
@@ -194,6 +194,13 @@ function SubmitTab({ onSaved, onWritingStepDone }: SubmitTabProps) {
       {/* Phase: candidates */}
       {state.phase === 'candidates' && (
         <div>
+          {state.summary && (
+            <div style={{ background: '#0f2027', border: '1px solid #1e3a5f', borderRadius: 10, padding: '14px 16px', marginBottom: 16 }}>
+              <div style={{ fontSize: 11, color: '#38bdf8', fontWeight: 600, marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.08em' }}>AI フィードバック</div>
+              <div style={{ fontSize: 13, color: '#cbd5e1', lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>{state.summary}</div>
+            </div>
+          )}
+
           <div style={{ background: '#1e293b', borderRadius: 8, padding: '12px 14px', marginBottom: 20, fontSize: 13, color: '#94a3b8' }}>
             <span style={{ color: '#64748b', fontSize: 11, display: 'block', marginBottom: 4 }}>あなたの英語</span>
             {state.text}

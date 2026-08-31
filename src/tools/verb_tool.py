@@ -95,36 +95,56 @@ def _fetch_oald_phrasal_verbs(soup: BeautifulSoup) -> list[str]:
 
 
 def assign_pattern_priorities(verb: dict) -> list[dict]:
-    """Assign priority tiers to existing verb patterns via LLM (gpt-4o-mini)."""
+    """Assign priority tiers per sense (not per code) via LLM (gpt-4o-mini)."""
     patterns = verb.get("patterns", [])
     if not patterns:
         return patterns
 
-    codes = list(dict.fromkeys(p["code"] for p in patterns))
-    summaries = []
-    for code in codes:
-        descs = " / ".join(p.get("description", "") for p in patterns if p["code"] == code)
-        summaries.append({"code": code, "description": descs})
-
+    items = [
+        {"index": i, "code": p["code"], "description": p.get("description", "")}
+        for i, p in enumerate(patterns)
+    ]
+    has_multiple = len(patterns) > 1
+    force_rule = (
+        "- センスが2つ以上ある場合は必ず複数の priority レベルに分けること（全部同じにしない）\n"
+        if has_multiple else ""
+    )
     prompt = (
-        f'動詞 "{verb["base"]}" の文型パターンに priority を割り当ててください。\n\n'
+        f'動詞 "{verb["base"]}" の各センス（意味・用法）に priority を割り当ててください。\n\n'
         "ルール:\n"
         "- priority は整数（1が最重要）\n"
-        "- 日常英語での使用頻度・重要度が基準\n"
-        "- 同時に覚えるべきパターンは同じ数字にしてよい\n\n"
-        f"パターン:\n{json.dumps(summaries, ensure_ascii=False, indent=2)}\n\n"
-        'JSON 配列で返す: [{"code": "V1", "priority": 1}, ...]'
+        "- 基準: 日本人が職場・日常英語で実際に使う頻度\n"
+        "  priority 1: ほぼ毎日使うレベルの基本的な意味\n"
+        "  priority 2: 知っていると便利だが後回しでよい\n"
+        "  priority 3: 特殊・慣用的・頻度が低い\n"
+        "- 同じコード（V3 など）でも意味が違えば異なる priority にしてよい\n"
+        f"{force_rule}"
+        "\nセンス一覧:\n"
+        f"{json.dumps(items, ensure_ascii=False, indent=2)}\n\n"
+        'JSON 配列で返す: [{"index": 0, "priority": 1}, {"index": 1, "priority": 2}, ...]'
     )
     raw = chat(
         [{"role": "user", "content": prompt}],
         json_mode=True,
-        max_tokens=200,
+        max_tokens=300,
         provider="openai",
-        model_tier="light",
+        model_tier="main",
     )
-    assignments: list[dict] = json.loads(raw)
-    priority_map = {a["code"]: a["priority"] for a in assignments}
-    return [{**p, "priority": priority_map.get(p["code"], 1)} for p in patterns]
+    data = json.loads(raw)
+    # Handle bare list, {"result": [...]}, or {"0": 1, ...} formats
+    if isinstance(data, list):
+        items_list = data
+    elif isinstance(data, dict) and "result" in data:
+        items_list = data["result"]
+    else:
+        items_list = []
+    if items_list and isinstance(items_list[0], dict) and "index" in items_list[0]:
+        priority_map = {a["index"]: a["priority"] for a in items_list}
+    elif isinstance(data, dict):
+        priority_map = {int(k): v for k, v in data.items() if str(k).isdigit() and isinstance(v, int)}
+    else:
+        priority_map = {}
+    return [{**p, "priority": priority_map.get(i, 1)} for i, p in enumerate(patterns)]
 
 
 def generate_verb_patterns(base: str) -> dict:

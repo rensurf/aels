@@ -24,6 +24,8 @@ USER_ID = os.environ.get("WEB_USER_ID") or os.environ.get("TELEGRAM_USER_ID", ""
 
 
 def main() -> None:
+    force = "--force" in sys.argv
+
     if not USER_ID:
         print("ERROR: WEB_USER_ID or TELEGRAM_USER_ID must be set")
         sys.exit(1)
@@ -36,7 +38,7 @@ def main() -> None:
 
     for verb in verbs:
         patterns = verb.get("patterns", [])
-        if all("priority" in p for p in patterns):
+        if not force and all("priority" in p for p in patterns):
             skipped += 1
             continue
 

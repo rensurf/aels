@@ -379,14 +379,12 @@ function QuizOverlay({ quiz, onUpdate, onClose }: {
   }
 
   const tier = getVerbTier(verb.id)
-  const codePriority = Object.fromEntries(
-    [...new Set(verb.patterns.map(p => p.code))].map(code => {
-      const p = verb.patterns.find(vp => vp.code === code)
-      return [code, p?.priority ?? 1]
-    })
+  // A code is active if it has at least one sense with priority <= tier
+  const codes = [...new Set(verb.patterns.map(p => p.code))]
+  const activeCodes = codes.filter(code =>
+    verb.patterns.some(p => p.code === code && (p.priority ?? 1) <= tier)
   )
-  const activeCodes = Object.keys(codePriority).filter(c => codePriority[c] <= tier)
-  const lockedCodes = Object.keys(codePriority).filter(c => codePriority[c] > tier)
+  const lockedCodes = codes.filter(code => !activeCodes.includes(code))
 
   return (
     <div style={{ maxWidth: 520, margin: '0 auto' }}>
@@ -432,24 +430,27 @@ function QuizOverlay({ quiz, onUpdate, onClose }: {
           </>
         ) : (
           <>
-            {/* Active patterns — full display */}
+            {/* Active patterns — full display, with inactive senses dimmed within each code */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10, textAlign: 'left', marginTop: 16 }}>
               {activeCodes.map(code => {
                 const senses = verb.patterns.filter(vp => vp.code === code)
                 return (
                   <div key={code} style={{ padding: '12px 16px', background: '#0f172a', borderRadius: 10, border: `1px solid ${patternColor(code)}22` }}>
                     <div style={{ fontWeight: 700, color: patternColor(code), fontSize: 12, marginBottom: 8 }}>{code}</div>
-                    {senses.map((sense, si) => (
-                      <div key={si} style={{ marginBottom: si < senses.length - 1 ? 10 : 0 }}>
-                        <div style={{ fontSize: 13, color: '#e2e8f0', marginBottom: 4 }}>{sense.description}</div>
-                        {sense.examples.filter(ex => ex.trim()).map((ex, i) => (
-                          <div key={i} style={{ fontSize: 12, color: '#64748b', fontStyle: 'italic', lineHeight: 1.6 }}>"{ex}"</div>
-                        ))}
-                        {sense.memo && (
-                          <div style={{ marginTop: 4, fontSize: 12, color: '#94a3b8', background: '#1e293b', padding: '4px 8px', borderRadius: 4 }}>{sense.memo}</div>
-                        )}
-                      </div>
-                    ))}
+                    {senses.map((sense, si) => {
+                      const isActiveSense = (sense.priority ?? 1) <= tier
+                      return (
+                        <div key={si} style={{ marginBottom: si < senses.length - 1 ? 10 : 0, opacity: isActiveSense ? 1 : 0.4 }}>
+                          <div style={{ fontSize: 13, color: '#e2e8f0', marginBottom: 4 }}>{sense.description}</div>
+                          {isActiveSense && sense.examples.filter(ex => ex.trim()).map((ex, i) => (
+                            <div key={i} style={{ fontSize: 12, color: '#64748b', fontStyle: 'italic', lineHeight: 1.6 }}>"{ex}"</div>
+                          ))}
+                          {isActiveSense && sense.memo && (
+                            <div style={{ marginTop: 4, fontSize: 12, color: '#94a3b8', background: '#1e293b', padding: '4px 8px', borderRadius: 4 }}>{sense.memo}</div>
+                          )}
+                        </div>
+                      )
+                    })}
                   </div>
                 )
               })}
@@ -587,6 +588,17 @@ function PatternEditCard({ vp, idx, draft, onDraftChange, removable = true }: {
           >
             {PATTERN_CODES.map(c => <option key={c} value={c}>{c}</option>)}
           </select>
+          <div style={{ display: 'flex', gap: 2, flexShrink: 0 }}>
+            {[1, 2, 3].map(n => (
+              <button
+                key={n}
+                onClick={() => updatePattern({ priority: n })}
+                style={{ padding: '2px 8px', borderRadius: 4, border: 'none', cursor: 'pointer', fontSize: 11, fontWeight: 700, background: (vp.priority ?? 1) === n ? '#6366f1' : '#0f172a', color: (vp.priority ?? 1) === n ? '#fff' : '#475569' }}
+              >
+                P{n}
+              </button>
+            ))}
+          </div>
           <input
             value={vp.description}
             onChange={e => updatePattern({ description: e.target.value })}
@@ -1196,7 +1208,10 @@ function VerbDetail({ verb, phrases: _phrases, onUpdated, onDeleted }: {
                 {senses.map((vp, si) => (
                   <div key={si} style={{ display: 'flex', gap: 8 }}>
                     <div style={{ flex: 1 }}>
-                      <div style={{ fontSize: 13, color: '#e2e8f0', marginBottom: 6, fontWeight: 500 }}>{vp.description}</div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                        <div style={{ fontSize: 13, color: '#e2e8f0', fontWeight: 500 }}>{vp.description}</div>
+                        {vp.priority && <span style={{ fontSize: 10, color, opacity: 0.5, flexShrink: 0 }}>{priorityStars(vp.priority)}</span>}
+                      </div>
                       {vp.examples.filter(ex => ex.trim()).map((ex, i) => (
                         <div key={i} style={{ fontSize: 13, color: '#94a3b8', fontStyle: 'italic', lineHeight: 1.6 }}>"{ex}"</div>
                       ))}

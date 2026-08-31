@@ -466,6 +466,7 @@ function mapCorrection(r: Record<string, unknown>): Correction {
 
 export interface SpeechAnalysisResult {
   transcript: string
+  summary: string
   corrections: { original: string; corrected: string; note: string }[]
 }
 

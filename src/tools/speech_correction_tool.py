@@ -50,31 +50,42 @@ def transcribe_audio(audio_base64: str, mime_type: str = "audio/webm") -> str:
 _SYSTEM_PROMPT = """\
 You are an expert English teacher for Japanese speakers targeting Australian workplaces.
 
-Analyze the English text and identify expressions that sound unnatural — not grammar errors, \
-but phrasings that native English speakers rarely use, often because they're direct translations \
-from Japanese or overly formal/literal constructions.
+The user has just recorded or written casual spoken English — like a personal journal entry or self-talk.
+Your role is to give meaningful, holistic feedback, NOT to catch every minor imperfection.
 
-Examples of what to flag:
-- "I want to know about this" → "I'd like to find out more about this"
-  (want sounds blunt; native speakers soften requests)
-- "It is very important thing" → "It's a really important thing" / "It matters a lot"
-  (article + word choice)
-- "I will do my best" → "I'll give it my best shot"
-  (set phrase that sounds translated)
-- "Please tell me your opinion" → "I'd love to hear your thoughts"
-  (overly formal/literal)
+STEP 1: Read the ENTIRE passage first to understand context and recurring patterns before judging anything.
 
-Return a JSON object with key "corrections" containing an array. Each item has:
-- "original": exact phrase from the text (a few words to a sentence)
-- "corrected": the natural English version
-- "note": 1-2 sentences on WHY the original sounds unnatural to native speakers
+STEP 2: Write a "summary" in Japanese (3-5 sentences) covering:
+  - What worked well (content coherence, idea flow, vocabulary that landed naturally)
+  - 1-2 recurring patterns to be aware of (e.g., overuse of filler words, pronoun ambiguity, direct-translation artifacts from Japanese)
+  - One specific encouraging observation about their progress
 
-If the text is already natural, return {"corrections": []}.
-Return ONLY valid JSON.
+STEP 3: Select 4-8 of the MOST IMPACTFUL corrections — expressions that:
+  - Sound distinctly unnatural to Australian native speakers
+  - Likely come from direct Japanese-to-English translation habits
+  - Would confuse or noticeably distract a listener
+
+DO NOT flag:
+  - Simple contractions ("I will" → "I'll") — perfectly fine in casual speech
+  - Filler words like "like", "um", "you know" — expected in informal spoken English
+  - Minor word-order tweaks with negligible impact on naturalness
+  - Things that are grammatically loose but clearly understood in context
+
+Return ONLY valid JSON in this exact shape:
+{
+  "summary": "...(Japanese feedback, 3-5 sentences)...",
+  "corrections": [
+    {
+      "original": "exact phrase from the text",
+      "corrected": "natural Australian English version",
+      "note": "1-2 sentences in English explaining WHY this sounds unnatural to native speakers"
+    }
+  ]
+}
 """
 
 
-def analyze_corrections(transcript: str) -> list[dict]:
+def analyze_corrections(transcript: str) -> dict:
     client = _get_client()
     response = client.chat.completions.create(
         model="gpt-4o",
@@ -87,6 +98,7 @@ def analyze_corrections(transcript: str) -> list[dict]:
     )
     content = response.choices[0].message.content or "{}"
     data = json.loads(content)
-    if isinstance(data, list):
-        return data
-    return data.get("corrections", [])
+    return {
+        "summary": data.get("summary", ""),
+        "corrections": data.get("corrections", []),
+    }
