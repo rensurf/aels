@@ -1,4 +1,5 @@
 import json
+
 from src.llm.client import chat
 
 _SYSTEM = """You extract vocabulary from English text for a Japanese learner (Ren).

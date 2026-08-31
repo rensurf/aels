@@ -1,4 +1,5 @@
 import json
+
 from src.llm.client import chat
 
 _SYSTEM = """You analyze English phrases and expressions for a Japanese learner (Ren).

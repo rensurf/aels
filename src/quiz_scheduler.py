@@ -1,6 +1,6 @@
-from src.config import COSMOS_ENDPOINT, COSMOS_KEY, COSMOS_DATABASE, COSMOS_GRAPH
-from src.graph.client import GremlinClient
+from src.config import COSMOS_DATABASE, COSMOS_ENDPOINT, COSMOS_GRAPH, COSMOS_KEY
 from src.graph import queries
+from src.graph.client import GremlinClient
 from src.quiz.flow import start_quiz
 
 _graph = GremlinClient(

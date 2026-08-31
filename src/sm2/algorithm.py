@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 from datetime import date, timedelta
 
+
 @dataclass
 class SM2Result:
     ease_factor: float

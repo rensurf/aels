@@ -1,33 +1,50 @@
 import json
-import requests
-import boto3
 from decimal import Decimal
+
+import boto3
+import requests
+
 from src.config import (
-    DYNAMODB_SESSION_TABLE, TELEGRAM_BOT_TOKEN, SQS_WORKER_QUEUE_URL,
-    DYNAMODB_PHRASES_TABLE, DYNAMODB_VERBS_TABLE, DYNAMODB_THREADS_TABLE, DYNAMODB_STATS_TABLE,
-    DYNAMODB_TOPICS_TABLE, DYNAMODB_CORRECTIONS_TABLE,
-    WEB_API_KEY, WEB_USER_ID,
-    COSMOS_ENDPOINT, COSMOS_KEY, COSMOS_DATABASE, COSMOS_GRAPH,
+    COSMOS_DATABASE,
+    COSMOS_ENDPOINT,
+    COSMOS_GRAPH,
+    COSMOS_KEY,
+    DYNAMODB_CORRECTIONS_TABLE,
+    DYNAMODB_PHRASES_TABLE,
+    DYNAMODB_SESSION_TABLE,
+    DYNAMODB_STATS_TABLE,
+    DYNAMODB_THREADS_TABLE,
+    DYNAMODB_TOPICS_TABLE,
+    DYNAMODB_VERBS_TABLE,
+    SQS_WORKER_QUEUE_URL,
+    TELEGRAM_BOT_TOKEN,
+    WEB_API_KEY,
+    WEB_USER_ID,
 )
-from src.session.client import SessionClient
-from src.quiz.flow import start_quiz, handle_quiz_answer, handle_quiz_give_up
-from src.quiz.intent import detect_intent
-from src.tools.memory_tool import do_save_phrases, get_recent_phrases, search_phrases, get_progress
-from src.graph.client import GremlinClient
-from src.graph import queries as graph_queries
-from src.db.phrases import PhrasesClient
-from src.db.verbs import VerbsClient
-from src.db.threads import ThreadsClient
-from src.db.stats import StatsClient
-from src.tools.verb_tool import generate_verb_patterns
-from src.tools.chat_tool import chat_with_teacher
-from src.tools.analyze_tool import analyze_phrase
-from src.tools.vocab_extract_tool import extract_vocab
-from src.db.topics import TopicsClient
 from src.db.corrections import CorrectionsClient
-from src.tools.speech_tool import analyze_speech
+from src.db.phrases import PhrasesClient
+from src.db.stats import StatsClient
+from src.db.threads import ThreadsClient
+from src.db.topics import TopicsClient
+from src.db.verbs import VerbsClient
+from src.graph import queries as graph_queries
+from src.graph.client import GremlinClient
+from src.quiz.flow import handle_quiz_answer, handle_quiz_give_up, start_quiz
+from src.quiz.intent import detect_intent
+from src.session.client import SessionClient
+from src.tools.analyze_tool import analyze_phrase
+from src.tools.chat_tool import chat_with_teacher
 from src.tools.keywords_tool import extract_levels
-from src.tools.speech_correction_tool import transcribe_audio, analyze_corrections
+from src.tools.memory_tool import (
+    do_save_phrases,
+    get_progress,
+    get_recent_phrases,
+    search_phrases,
+)
+from src.tools.speech_correction_tool import analyze_corrections, transcribe_audio
+from src.tools.speech_tool import analyze_speech
+from src.tools.verb_tool import generate_verb_patterns
+from src.tools.vocab_extract_tool import extract_vocab
 
 session_client = SessionClient(table_name=DYNAMODB_SESSION_TABLE)
 phrases_client = PhrasesClient(table_name=DYNAMODB_PHRASES_TABLE)
@@ -542,7 +559,8 @@ def _handle_get_stats(event: dict) -> dict:
     if not WEB_USER_ID:
         return _json_response(503, {"error": "WEB_USER_ID not configured"})
     try:
-        from datetime import date as _date, timedelta as _td
+        from datetime import date as _date
+        from datetime import timedelta as _td
         stats = stats_client.get_stats(user_id=WEB_USER_ID)
         today = _date.today().isoformat()
         yesterday = (_date.today() - _td(days=1)).isoformat()

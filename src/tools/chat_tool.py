@@ -1,4 +1,5 @@
 import json
+
 from src.llm.client import chat
 
 _SYSTEM = """You are Ren's personal English conversation coach and editor.

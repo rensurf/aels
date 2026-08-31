@@ -1,6 +1,6 @@
 from datetime import date, timedelta
-from src.sm2.algorithm import calculate_next_review, SM2Result
 
+from src.sm2.algorithm import SM2Result, calculate_next_review
 
 # --- interval progression ---
 

@@ -3,11 +3,13 @@ Seed script: load 18 conversation topics into aels-topics DynamoDB.
 Run: python -m src.tools.seed_topics
 """
 import sys
+
 from dotenv import load_dotenv
+
 load_dotenv()
 
-from src.db.topics import TopicsClient  # noqa: E402
 from src.config import DYNAMODB_TOPICS_TABLE, WEB_USER_ID  # noqa: E402
+from src.db.topics import TopicsClient  # noqa: E402
 
 TOPICS_DATA = [
     {

@@ -3,11 +3,10 @@ from collections import defaultdict
 from typing import Any
 
 from src.config import COSMOS_DATABASE, COSMOS_ENDPOINT, COSMOS_GRAPH, COSMOS_KEY
-from src.llm.client import chat
 from src.graph import queries
 from src.graph.client import GremlinClient
 from src.graph.queries import _esc
-
+from src.llm.client import chat
 
 client = GremlinClient(endpoint=COSMOS_ENDPOINT,
                        key=COSMOS_KEY,
@@ -103,8 +102,8 @@ def save_phrases(phrases: list[dict], user_id: str) -> str:
             - note: Additional notes (str)
         user_id: The user's Telegram user ID
     """
-    from src.session.client import SessionClient
     from src.config import DYNAMODB_SESSION_TABLE
+    from src.session.client import SessionClient
     SessionClient(table_name=DYNAMODB_SESSION_TABLE).append_pending_phrases(user_id, phrases)
     return f"Queued {len(phrases)} phrase(s) for user confirmation."
 

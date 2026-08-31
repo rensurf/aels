@@ -5,10 +5,10 @@ mock_client.execute.return_value = []
 
 with patch("src.tools.memory_tool.client", mock_client):
     from src.tools.memory_tool import (
-        do_save_phrases,
-        search_phrases,
         _classify_pattern,
+        do_save_phrases,
         get_weakness_summary,
+        search_phrases,
     )
 
 

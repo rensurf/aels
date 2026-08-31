@@ -1,5 +1,7 @@
 import concurrent.futures
+
 from gremlin_python.driver import client, serializer
+
 
 class GremlinClient:
     def __init__(self, endpoint: str, key: str, database: str, graph: str) -> None:

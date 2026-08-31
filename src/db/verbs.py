@@ -1,6 +1,7 @@
+from datetime import datetime, timezone
+
 import boto3
 from boto3.dynamodb.conditions import Key
-from datetime import datetime, timezone
 
 from src.db import _normalize
 
