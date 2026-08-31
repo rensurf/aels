@@ -1,3 +1,9 @@
+[tool.ruff]
+[tool.ruff.lint]
+ignore = [
+  "BLE001",  # Lambda handlers intentionally catch Exception to return 500 errors
+]
+
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 
