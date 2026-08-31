@@ -557,6 +557,24 @@ def _handle_get_stats(event: dict) -> dict:
         return _json_response(500, {"error": str(e)})
 
 
+def _handle_post_study_time(event: dict) -> dict:
+    if not _authorized(event):
+        return _json_response(401, {"error": "Unauthorized"})
+    if not WEB_USER_ID:
+        return _json_response(503, {"error": "WEB_USER_ID not configured"})
+    try:
+        body = json.loads(event.get("body") or "{}")
+        study_date = body.get("date")
+        minutes = int(body.get("minutes", 0))
+        if not study_date or minutes <= 0:
+            return _json_response(400, {"error": "date and minutes required"})
+        stats_client.add_study_minutes(user_id=WEB_USER_ID, study_date=study_date, minutes=minutes)
+        return _json_response(200, {"ok": True})
+    except Exception as e:
+        print(f"[POST /stats/study-time] error: {e}")
+        return _json_response(500, {"error": str(e)})
+
+
 def _handle_get_verb(event: dict) -> dict:
     if not _authorized(event):
         return _json_response(401, {"error": "Unauthorized"})
@@ -932,6 +950,8 @@ def lambda_handler(event, context):
         return _handle_get_thread(event)
     if route_key == "GET /stats":
         return _handle_get_stats(event)
+    if route_key == "POST /stats/study-time":
+        return _handle_post_study_time(event)
     if route_key == "POST /phrases/{phrase_id}/alternatives":
         return _handle_post_phrase_alternatives(event)
     if route_key == "POST /topics":

@@ -3,6 +3,7 @@ export type PhraseType = 'sentence' | 'phrasal_verb' | 'idiom' | 'fixed_phrase' 
 
 export interface VerbPattern {
   code: string
+  priority?: number
   description: string
   examples: string[]
   memo?: string

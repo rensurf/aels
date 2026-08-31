@@ -1,4 +1,5 @@
 from datetime import date, timedelta
+from decimal import Decimal
 from typing import Literal
 
 import boto3
@@ -19,14 +20,30 @@ class StatsClient:
                 "best_streak": 0,
                 "last_completed_date": None,
                 "completed_dates": [],
+                "study_minutes_by_date": {},
             }
         completed = item.get("completed_dates", set())
+        raw_minutes = item.get("study_minutes", {})
         return {
             "current_streak": int(item.get("current_streak", 0)),
             "best_streak": int(item.get("best_streak", 0)),
             "last_completed_date": item.get("last_completed_date"),
             "completed_dates": sorted(list(completed)),
+            "study_minutes_by_date": {d: int(m) for d, m in raw_minutes.items()},
         }
+
+    def add_study_minutes(self, user_id: str, study_date: str, minutes: int) -> None:
+        resp = self.table.get_item(Key={"user_id": user_id})
+        item = resp.get("Item") or {}
+        study_minutes = dict(item.get("study_minutes", {}))
+        study_minutes[study_date] = int(study_minutes.get(study_date, 0)) + minutes
+        self.table.update_item(
+            Key={"user_id": user_id},
+            UpdateExpression="SET study_minutes = :sm",
+            ExpressionAttributeValues={
+                ":sm": {d: Decimal(str(m)) for d, m in study_minutes.items()},
+            },
+        )
 
     def try_complete_day(self, user_id: str) -> dict:
         """Mark today as completed if not already done. Updates streak and date history."""

@@ -6,6 +6,24 @@ import { readStudyData } from '../hooks/useStudyTimer'
 
 type CardState = 'front' | 'back'
 
+const GOAL_KEY = 'aels-daily-goal'
+const MIN_GOAL = 30
+
+function loadTodayGoal(): number | null {
+  try {
+    const raw = localStorage.getItem(GOAL_KEY)
+    if (!raw) return null
+    const parsed = JSON.parse(raw) as { date: string; goal: number }
+    return parsed.date === today() ? parsed.goal : null
+  } catch {
+    return null
+  }
+}
+
+function saveTodayGoal(goal: number) {
+  localStorage.setItem(GOAL_KEY, JSON.stringify({ date: today(), goal }))
+}
+
 function speak(text: string) {
   window.speechSynthesis.cancel()
   const utter = new SpeechSynthesisUtterance(text)
@@ -43,10 +61,13 @@ export function VariantC({ phrases, verbs, streak, completedDates, onPhraseRevie
   const [results, setResults] = useState<{ id: string; correct: boolean }[]>([])
   const [showStats, setShowStats] = useState(false)
   const [showNewSection, setShowNewSection] = useState(true)
+  const [goal, setGoal] = useState<number | null>(loadTodayGoal)
 
   const current = queue[0]
   const done = results.length
   const total = dueItems.length
+  // due が goal より少ない日は全枚数でOK
+  const effectiveGoal = goal !== null ? Math.min(total, goal) : total
 
   // due が 0件でマウントした場合もルーティンを完了させる
   const stepDoneCalledRef = useRef(false)
@@ -61,9 +82,15 @@ export function VariantC({ phrases, verbs, streak, completedDates, onPhraseRevie
   const verbOfDay = verbs.find(v => dueItems.some(p => p.verbId === v.id)) ?? verbs[0]
   const verbOfDayPhrases = verbOfDay ? phrases.filter(p => p.verbId === verbOfDay.id) : []
 
+  function handleGoalSet(g: number) {
+    saveTodayGoal(g)
+    setGoal(g)
+  }
+
   async function handleResult(correct: boolean) {
     if (!current) return
-    const isLast = queue.length === 1
+    const newDone = done + 1
+    const isGoalReached = newDone >= effectiveGoal
     setResults(r => [...r, { id: current.id, correct }])
     setQueue(q => q.slice(1))
     setCardState('front')
@@ -77,7 +104,7 @@ export function VariantC({ phrases, verbs, streak, completedDates, onPhraseRevie
         const newDates = completedDates.includes(newDate) ? completedDates : [...completedDates, newDate].sort()
         onStreakUpdated(result.streak, newDates)
       }
-      if (isLast && !stepDoneCalledRef.current) {
+      if (isGoalReached && !stepDoneCalledRef.current) {
         stepDoneCalledRef.current = true
         await completeRoutineStep('phrase')
         onPhraseStepDone?.()
@@ -87,7 +114,11 @@ export function VariantC({ phrases, verbs, streak, completedDates, onPhraseRevie
     }
   }
 
-  const allDone = queue.length === 0 && done > 0
+  const allDone = done >= effectiveGoal && done > 0
+
+  if (goal === null && total > 0) {
+    return <GoalSetupScreen total={total} onConfirm={handleGoalSet} />
+  }
 
   return (
     <div style={{
@@ -162,15 +193,15 @@ export function VariantC({ phrases, verbs, streak, completedDates, onPhraseRevie
       {/* Progress */}
       <div style={{ padding: '0 24px', marginBottom: 24 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: '#64748b', marginBottom: 6 }}>
-          <span>{done} done</span>
-          <span>{queue.length} remaining</span>
+          <span>{done} / {effectiveGoal} done</span>
+          <span>{Math.max(0, effectiveGoal - done)} remaining</span>
         </div>
         <div style={{ height: 6, background: '#1e293b', borderRadius: 999, overflow: 'hidden' }}>
           <div style={{
             height: '100%',
             background: 'linear-gradient(90deg, #6366f1, #8b5cf6)',
             borderRadius: 999,
-            width: `${total ? (done / total) * 100 : 0}%`,
+            width: `${effectiveGoal ? Math.min((done / effectiveGoal) * 100, 100) : 0}%`,
             transition: 'width 0.4s ease',
           }} />
         </div>
@@ -332,6 +363,74 @@ export function VariantC({ phrases, verbs, streak, completedDates, onPhraseRevie
       {showStats && (
         <StatsPanel streak={streak} completedDates={completedDates} onClose={() => setShowStats(false)} />
       )}
+    </div>
+  )
+}
+
+// --- Goal setup screen ---
+
+function GoalSetupScreen({ total, onConfirm }: { total: number; onConfirm: (goal: number) => void }) {
+  const [input, setInput] = useState(String(Math.max(MIN_GOAL, total)))
+  const parsed = parseInt(input, 10)
+  const valid = !isNaN(parsed) && parsed >= MIN_GOAL
+
+  return (
+    <div style={{
+      minHeight: '100vh',
+      background: 'linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%)',
+      fontFamily: 'system-ui, sans-serif',
+      color: '#e2e8f0',
+      display: 'flex',
+      flexDirection: 'column',
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: '0 32px',
+    }}>
+      <div style={{ fontSize: 48, marginBottom: 24 }}>🎯</div>
+      <div style={{ fontSize: 22, fontWeight: 800, color: '#f1f5f9', marginBottom: 8 }}>今日のゴールは？</div>
+      <div style={{ fontSize: 14, color: '#64748b', marginBottom: 8 }}>期日のカード: {total} 枚</div>
+      <div style={{ fontSize: 12, color: '#475569', marginBottom: 32 }}>最低 {MIN_GOAL} 枚 · 一度設定したら変更不可</div>
+
+      <input
+        type="number"
+        min={MIN_GOAL}
+        value={input}
+        onChange={e => setInput(e.target.value)}
+        style={{
+          width: 140,
+          padding: '16px 20px',
+          fontSize: 32,
+          fontWeight: 800,
+          textAlign: 'center',
+          background: '#1e293b',
+          border: valid ? '2px solid #6366f1' : '2px solid #7f1d1d',
+          borderRadius: 16,
+          color: '#f1f5f9',
+          outline: 'none',
+          marginBottom: 8,
+        }}
+      />
+      {!valid && (
+        <div style={{ fontSize: 12, color: '#f87171', marginBottom: 16 }}>最低 {MIN_GOAL} 枚以上</div>
+      )}
+      {valid && <div style={{ height: 24, marginBottom: 16 }} />}
+
+      <button
+        disabled={!valid}
+        onClick={() => valid && onConfirm(parsed)}
+        style={{
+          padding: '16px 48px',
+          borderRadius: 14,
+          background: valid ? 'linear-gradient(90deg, #6366f1, #8b5cf6)' : '#1e293b',
+          border: 'none',
+          color: valid ? '#fff' : '#475569',
+          fontSize: 16,
+          fontWeight: 700,
+          cursor: valid ? 'pointer' : 'not-allowed',
+        }}
+      >
+        今日はこれでいく
+      </button>
     </div>
   )
 }

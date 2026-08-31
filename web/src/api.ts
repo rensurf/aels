@@ -254,12 +254,21 @@ export interface Stats {
   best_streak: number
   last_completed_date: string | null
   completed_dates: string[]
+  study_minutes_by_date: Record<string, number>
 }
 
 export async function fetchStats(): Promise<Stats> {
   const resp = await fetch(`${API_BASE}/stats`, { headers })
   if (!resp.ok) throw new Error(`Fetch stats failed: ${resp.status}`)
   return resp.json() as Promise<Stats>
+}
+
+export async function postStudyTime(date: string, minutes: number): Promise<void> {
+  await fetch(`${API_BASE}/stats/study-time`, {
+    method: 'POST',
+    headers: { ...headers, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ date, minutes }),
+  })
 }
 
 export interface VocabExtractItem {

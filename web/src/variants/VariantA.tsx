@@ -7,6 +7,33 @@ const PATTERN_CODES = ['V1', 'V2', 'V3', 'V4', 'V5'] as const
 
 const PALETTE = ['#3b82f6', '#8b5cf6', '#ec4899', '#10b981', '#f59e0b', '#06b6d4', '#ef4444']
 
+const TIER_UNLOCK_THRESHOLD = 3
+
+function getVerbTier(verbId: string): number {
+  return parseInt(localStorage.getItem(`aels_verb_tier_${verbId}`) ?? '1', 10)
+}
+
+function recordVerbResult(verbId: string, correct: boolean, patterns: import('../types').VerbPattern[]): void {
+  if (!correct) return
+  const tier = getVerbTier(verbId)
+  const maxPriority = Math.max(...patterns.map(p => p.priority ?? 1), 1)
+  if (tier >= maxPriority) return
+  const progKey = `aels_verb_tier_prog_${verbId}`
+  const progress = parseInt(localStorage.getItem(progKey) ?? '0', 10) + 1
+  if (progress >= TIER_UNLOCK_THRESHOLD) {
+    localStorage.setItem(`aels_verb_tier_${verbId}`, String(tier + 1))
+    localStorage.removeItem(progKey)
+  } else {
+    localStorage.setItem(progKey, String(progress))
+  }
+}
+
+function priorityStars(priority: number): string {
+  if (priority === 1) return '★★★'
+  if (priority === 2) return '★★☆'
+  return '★☆☆'
+}
+
 function patternColor(code: string): string {
   let h = 0
   for (const c of code) h = (h * 31 + c.charCodeAt(0)) & 0xffff
@@ -319,6 +346,7 @@ function QuizOverlay({ quiz, onUpdate, onClose }: {
   const isDone = quiz.index >= quiz.verbs.length
 
   const handleResult = (correct: boolean) => {
+    if (verb) recordVerbResult(verb.id, correct, verb.patterns)
     onUpdate({
       ...quiz,
       index: quiz.index + 1,
@@ -350,7 +378,15 @@ function QuizOverlay({ quiz, onUpdate, onClose }: {
     )
   }
 
-  const codes = [...new Set(verb.patterns.map(vp => vp.code))]
+  const tier = getVerbTier(verb.id)
+  const codePriority = Object.fromEntries(
+    [...new Set(verb.patterns.map(p => p.code))].map(code => {
+      const p = verb.patterns.find(vp => vp.code === code)
+      return [code, p?.priority ?? 1]
+    })
+  )
+  const activeCodes = Object.keys(codePriority).filter(c => codePriority[c] <= tier)
+  const lockedCodes = Object.keys(codePriority).filter(c => codePriority[c] > tier)
 
   return (
     <div style={{ maxWidth: 520, margin: '0 auto' }}>
@@ -376,7 +412,17 @@ function QuizOverlay({ quiz, onUpdate, onClose }: {
 
         {!quiz.revealed ? (
           <>
-            <div style={{ fontSize: 13, color: '#475569', marginTop: 24, marginBottom: 28 }}>このパターンをすべて言えますか？</div>
+            {/* Active pattern badges */}
+            <div style={{ fontSize: 11, color: '#64748b', marginTop: 20, marginBottom: 8 }}>今日の復習</div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, justifyContent: 'center', marginBottom: 16 }}>
+              {activeCodes.map(code => (
+                <span key={code} style={{ padding: '5px 14px', borderRadius: 999, fontSize: 13, fontWeight: 700, background: patternColor(code) + '22', color: patternColor(code), border: `1px solid ${patternColor(code)}44` }}>{code}</span>
+              ))}
+            </div>
+            {lockedCodes.length > 0 && (
+              <div style={{ fontSize: 12, color: '#334155', marginBottom: 16 }}>🔒 {lockedCodes.join(', ')} は習得後に解放</div>
+            )}
+            <div style={{ fontSize: 13, color: '#475569', marginBottom: 28 }}>このパターンをすべて言えますか？</div>
             <button
               onClick={() => onUpdate({ ...quiz, revealed: true })}
               style={{ padding: '12px 32px', borderRadius: 10, border: 'none', background: '#6366f1', color: '#fff', fontSize: 15, fontWeight: 600, cursor: 'pointer' }}
@@ -386,16 +432,9 @@ function QuizOverlay({ quiz, onUpdate, onClose }: {
           </>
         ) : (
           <>
-            {/* Pattern code badges */}
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, justifyContent: 'center', margin: '20px 0 16px' }}>
-              {codes.map(code => (
-                <span key={code} style={{ padding: '5px 14px', borderRadius: 999, fontSize: 13, fontWeight: 700, background: patternColor(code) + '22', color: patternColor(code), border: `1px solid ${patternColor(code)}44` }}>{code}</span>
-              ))}
-            </div>
-
-            {/* All patterns — all senses + all examples + memo */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, textAlign: 'left' }}>
-              {codes.map(code => {
+            {/* Active patterns — full display */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, textAlign: 'left', marginTop: 16 }}>
+              {activeCodes.map(code => {
                 const senses = verb.patterns.filter(vp => vp.code === code)
                 return (
                   <div key={code} style={{ padding: '12px 16px', background: '#0f172a', borderRadius: 10, border: `1px solid ${patternColor(code)}22` }}>
@@ -415,6 +454,24 @@ function QuizOverlay({ quiz, onUpdate, onClose }: {
                 )
               })}
             </div>
+
+            {/* Locked patterns — dimmed */}
+            {lockedCodes.length > 0 && (
+              <div style={{ marginTop: 14, textAlign: 'left', opacity: 0.4 }}>
+                <div style={{ fontSize: 11, color: '#475569', marginBottom: 8 }}>🔒 次に学習するパターン</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {lockedCodes.map(code => {
+                    const senses = verb.patterns.filter(vp => vp.code === code)
+                    return (
+                      <div key={code} style={{ padding: '10px 14px', background: '#0f172a', borderRadius: 10, border: '1px solid #1e293b' }}>
+                        <div style={{ fontWeight: 700, color: '#475569', fontSize: 12, marginBottom: 4 }}>{code}</div>
+                        <div style={{ fontSize: 12, color: '#475569' }}>{senses[0]?.description}</div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
 
             {/* Phrasal verbs */}
             {verb.phrasalVerbs.length > 0 && (
@@ -1129,6 +1186,9 @@ function VerbDetail({ verb, phrases: _phrases, onUpdated, onDeleted }: {
               {/* Header */}
               <div style={{ padding: '12px 20px', borderBottom: `1px solid ${color}22`, background: color + '11', display: 'flex', alignItems: 'center', gap: 10 }}>
                 <span style={{ fontWeight: 700, color, fontSize: 13 }}>{code}</span>
+                {senses[0]?.priority && (
+                  <span style={{ fontSize: 11, color, opacity: 0.55 }}>{priorityStars(senses[0].priority)}</span>
+                )}
               </div>
 
               {/* Senses — each with description + examples */}

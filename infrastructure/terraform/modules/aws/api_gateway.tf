@@ -119,6 +119,12 @@ resource "aws_apigatewayv2_route" "get_stats" {
   target    = "integrations/${aws_apigatewayv2_integration.lambda.id}"
 }
 
+resource "aws_apigatewayv2_route" "post_stats_study_time" {
+  api_id    = aws_apigatewayv2_api.aels.id
+  route_key = "POST /stats/study-time"
+  target    = "integrations/${aws_apigatewayv2_integration.lambda.id}"
+}
+
 resource "aws_apigatewayv2_route" "post_phrase_alternatives" {
   api_id    = aws_apigatewayv2_api.aels.id
   route_key = "POST /phrases/{phrase_id}/alternatives"

@@ -4,11 +4,15 @@ import './index.css'
 import App from './App.tsx'
 import { VocabPrototype } from './prototype/VocabPrototype.tsx'
 import { TopicPrototype } from './prototype/TopicPrototype.tsx'
+import { PriorityReviewPrototype } from './prototype/PriorityReviewPrototype.tsx'
 
 const proto = new URLSearchParams(window.location.search).get('prototype')
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    {proto === 'vocab' ? <VocabPrototype /> : proto === 'topics' ? <TopicPrototype /> : <App />}
+    {proto === 'vocab' ? <VocabPrototype />
+      : proto === 'topics' ? <TopicPrototype />
+      : proto === 'priority-review' ? <PriorityReviewPrototype />
+      : <App />}
   </StrictMode>,
 )

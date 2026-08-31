@@ -28,11 +28,15 @@ V5 = SVOC（目的格補語）
   各項目に pattern（V1〜V5）・日本語の definition・自然な英語の example を付けること。
   pattern は句動詞単体が取る文型（例: "look after sb" → V3、"look out" → V1）。
 
+- priority: 各コードに整数を割り当てる（1が最重要）。日常英語での使用頻度・重要度が基準。
+  同時に覚えるべきコードは同じ数字にしてよい。
+
 出力は以下の JSON 形式で返してください：
 {
   "patterns": [
     {
       "code": "V1",
+      "priority": 1,
       "structure": "return / return to N",
       "description": "日本語で意味・用法を説明",
       "examples": ["英文例1", "英文例2"]
@@ -88,6 +92,39 @@ def _fetch_oald_senses(base: str) -> tuple[list[dict], BeautifulSoup | None]:
 
 def _fetch_oald_phrasal_verbs(soup: BeautifulSoup) -> list[str]:
     return [a.get_text(strip=True) for a in soup.select(".phrasal_verb_links a")]
+
+
+def assign_pattern_priorities(verb: dict) -> list[dict]:
+    """Assign priority tiers to existing verb patterns via LLM (gpt-4o-mini)."""
+    patterns = verb.get("patterns", [])
+    if not patterns:
+        return patterns
+
+    codes = list(dict.fromkeys(p["code"] for p in patterns))
+    summaries = []
+    for code in codes:
+        descs = " / ".join(p.get("description", "") for p in patterns if p["code"] == code)
+        summaries.append({"code": code, "description": descs})
+
+    prompt = (
+        f'動詞 "{verb["base"]}" の文型パターンに priority を割り当ててください。\n\n'
+        "ルール:\n"
+        "- priority は整数（1が最重要）\n"
+        "- 日常英語での使用頻度・重要度が基準\n"
+        "- 同時に覚えるべきパターンは同じ数字にしてよい\n\n"
+        f"パターン:\n{json.dumps(summaries, ensure_ascii=False, indent=2)}\n\n"
+        'JSON 配列で返す: [{"code": "V1", "priority": 1}, ...]'
+    )
+    raw = chat(
+        [{"role": "user", "content": prompt}],
+        json_mode=True,
+        max_tokens=200,
+        provider="openai",
+        model_tier="light",
+    )
+    assignments: list[dict] = json.loads(raw)
+    priority_map = {a["code"]: a["priority"] for a in assignments}
+    return [{**p, "priority": priority_map.get(p["code"], 1)} for p in patterns]
 
 
 def generate_verb_patterns(base: str) -> dict:
