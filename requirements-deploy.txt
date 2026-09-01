@@ -7,3 +7,4 @@ agent-framework-openai==1.2.1
 agent-framework-anthropic==1.0.0b260428
 python-dotenv>=1.1.1
 requests
+beautifulsoup4
