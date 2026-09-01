@@ -88,7 +88,9 @@ jobs:
           COSMOS_DATABASE=${{ secrets.COSMOS_DATABASE }},\
           COSMOS_GRAPH=${{ secrets.COSMOS_GRAPH }},\
           DYNAMODB_SESSION_TABLE=${{ secrets.DYNAMODB_SESSION_TABLE }},\
-          SQS_WORKER_QUEUE_URL=${{ secrets.SQS_WORKER_QUEUE_URL }}}"
+          SQS_WORKER_QUEUE_URL=${{ secrets.SQS_WORKER_QUEUE_URL }},\
+          WEB_API_KEY=${{ secrets.WEB_API_KEY }},\
+          WEB_USER_ID=${{ secrets.WEB_USER_ID }}}"
 
           for fn in aels-teacher aels-worker aels-quiz-scheduler; do
             aws lambda update-function-configuration \
