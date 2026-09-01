@@ -37,8 +37,8 @@ rm -rf $BUILD_DIR/botocore $BUILD_DIR/boto3  # already in Lambda runtime
 
 echo "=== Copying source files ==="
 cp -r src/ $BUILD_DIR/src/
-cp main.py $BUILD_DIR/main.py
-cp worker.py $BUILD_DIR/worker.py
+cp src/main.py $BUILD_DIR/main.py
+cp src/worker.py $BUILD_DIR/worker.py
 
 echo "=== Creating zip ==="
 cd $BUILD_DIR

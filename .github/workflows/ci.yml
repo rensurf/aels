@@ -52,7 +52,7 @@ jobs:
         run: |
           uv pip install -r requirements-deploy.txt --target package/ --prerelease=allow --python $(uv python find)
           cp -r src/ package/src/
-          cp main.py src/worker.py src/quiz_scheduler.py package/
+          cp src/main.py src/worker.py src/quiz_scheduler.py package/
           cd package && zip -r ../deploy.zip . -x "*.pyc" -x "__pycache__/*"
 
       - name: Configure AWS credentials
