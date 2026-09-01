@@ -244,7 +244,7 @@ def _handle_callback_query(body: dict) -> dict:
     return {"statusCode": 200}
 
 
-def _json_response(status: int, body: dict) -> dict:
+def _json_response(status: int, body: dict | list) -> dict:
     return {
         "statusCode": status,
         "headers": {
